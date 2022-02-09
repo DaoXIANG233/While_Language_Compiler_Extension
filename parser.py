@@ -16,18 +16,37 @@ def p_str(p):
     '''string : STRING'''
     p[0] = ('Str', p[1])
 
+def p_bool(p):
+    '''bool : BKEYWORD'''
+    p[0] = ('Bool', p[1])
+
+def p_lst(p):
+    '''list : lstel lstconnect list
+            | lstel'''
+    if (4 == len(p)):
+        p[0] = [p[1]] + p[3]
+    else:
+        p[0] = [p[1]]
+def p_lst_lstel(p):
+    '''lstel : variable
+             | string'''
+    p[0] = p[1]
+def p_lst_lstconnect(p):
+    '''lstconnect : COMMA'''
+    p[0] = p[1]
 
 def p_aexp(p):
-    '''aexp : te AOPERATOR aexp'''
-    if p[2] == '+' or p[2] == '-':
-        p[0] = ('aexp', p[2], p[1], p[3])
+    '''aexp : te PLUS aexp
+            | te MINUS aexp'''
+    p[0] = ('aexp', p[2], p[1], p[3])
 def p_aexp_te(p):
     '''aexp : te'''
     p[0] = p[1]
 def p_te(p):
-    '''te : fa AOPERATOR te'''
-    if p[2] == '*' or p[2] == '/' or p[2] == '%':
-        p[0] = ('aexp', p[2], p[1], p[3])
+    '''te : fa TIMES te
+          | fa DIVIDE te
+          | fa REMAIN te'''
+    p[0] = ('aexp', p[2], p[1], p[3])
 def p_te_fa(p):
     '''te : fa'''
     p[0] = p[1]
@@ -41,15 +60,13 @@ def p_fa_basic(p):
 
 
 def p_bexp(p):
-    '''bexp : aexp BOPERATOR aexp'''
-    if p[2] in ['==', '!=', '>', '<', '>=', '<=']:
-        p[0] = ('bexp', p[2], p[1], p[3])
+    '''bexp : aexp ABOPERATOR aexp'''
+    p[0] = ('bexp', p[2], p[1], p[3])
 def p_bexp_nested(p):
-    '''bexp : bexp BOPERATOR bexp'''
-    if p[2] in ['&&', '||']:
-        p[0] = ('bexp', p[2], p[1], p[3])
+    '''bexp : bexp LBOPERATOR bexp'''
+    p[0] = ('bexp', p[2], p[1], p[3])
 def p_bexp_basic(p):
-    '''bexp : BKEYWORD'''
+    '''bexp : bool'''
     p[0] = p[1]
 def p_bexp_paren(p):
     '''bexp : LPAREN bexp RPAREN'''
@@ -58,41 +75,48 @@ def p_bexp_paren(p):
 def p_statement_basic(p):
     '''stmt : stmt SEMICOLON'''
     p[0] = p[1]
+def p_statement_exp(p):
+    '''stmt : aexp
+            | bexp'''
+    p[0] = p[1]
 def p_statement_skip(p):
     '''stmt : SKIP'''
     p[0] = p[1]
 def p_statement_assign(p):
     '''stmt : variable ASSOPERATOR aexp'''
     p[0] = ('assign', p[1], p[3])
-def p_statement_write_id(p):
-    '''stmt : WRITE variable
-            | WRITE LPAREN variable RPAREN'''
-    if len(p) == 3:
-        p[0] = ('writeId', p[2])
-    else:
-        p[0] = ('writeId', p[3])
-def p_statement_write_str(p):
-    '''stmt : WRITE string
-            | WRITE number
-            | WRITE LPAREN string RPAREN
-            | WRITE LPAREN number RPAREN'''
-    if len(p) == 3:
-        p[0] = ('writeStr', p[2])
-    else:
-        p[0] = ('writeStr', p[3])
+def p_statement_call(p):
+    '''stmt : IDENTIFIER LPAREN list RPAREN'''
+    p[0] = ('call', p[1], p[3])
+# def p_statement_write_id(p):
+#     '''stmt : WRITE variable
+#             | WRITE LPAREN variable RPAREN'''
+#     if len(p) == 3:
+#         p[0] = ('writeId', p[2])
+#     else:
+#         p[0] = ('writeId', p[3])
+# def p_statement_write_str(p):
+#     '''stmt : WRITE string
+#             | WRITE number
+#             | WRITE LPAREN string RPAREN
+#             | WRITE LPAREN number RPAREN'''
+#     if len(p) == 3:
+#         p[0] = ('writeStr', p[2])
+#     else:
+#         p[0] = ('writeStr', p[3])
 def p_statement_if(p):
     '''stmt : IF bexp THEN block ELSE block'''
     p[0] = ('if', p[2], p[4], p[6])
 def p_statement_while(p):
     '''stmt : WHILE bexp DO block'''
     p[0] = ('while', p[2], p[4])
-def p_statement_read(p):
-    '''stmt : READ variable
-            | READ LPAREN variable RPAREN'''
-    if len(p) == 3:
-        p[0] = ('read', p[2])
-    else:
-        p[0] = ('read', p[3])
+# def p_statement_read(p):
+#     '''stmt : READ variable
+#             | READ LPAREN variable RPAREN'''
+#     if len(p) == 3:
+#         p[0] = ('read', p[2])
+#     else:
+#         p[0] = ('read', p[3])
 
 def p_statements(p):
     '''stmts : stmt SEMICOLON stmts'''

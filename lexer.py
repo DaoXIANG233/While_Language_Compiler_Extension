@@ -10,16 +10,24 @@ keywords = { 'skip' : 'SKIP',
             'if' : 'IF',
             'then' : 'THEN',
             'else' : 'ELSE',
-            'read' : 'READ',
-            'write': 'WRITE',
+            # 'read' : 'READ',
+            # 'write': 'WRITE',
             'for' : 'FOR',
             'to' : 'TO'}
 t_BKEYWORD = r'true|false' # Boolean keywords
 # t_OPERATOR = r'\+|-|\*|%|/|==|!=|>|<|<=|>=|:=|&&|\|\|'
-t_AOPERATOR = r'\+|-|\*|%|/' # Arithmetic operators
-t_BOPERATOR = r'==|!=|>|<|<=|>=|&&|\|\|' # Boolean operators
+# t_AOPERATOR = r'\+|-|\*|%|/' # Arithmetic operators
+t_PLUS = r'\+'
+t_MINUS = r'-'
+t_TIMES = r'\*'
+t_DIVIDE = r'/'
+t_REMAIN = r'%'
+aoperators = ['PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'REMAIN']
+t_ABOPERATOR = r'==|!=|>|<|<=|>=' # Arithmetic Boolean operators
+t_LBOPERATOR = r'&&|\|\|' # Logic Boolean operators
+boperators = ['ABOPERATOR', 'LBOPERATOR']
 t_ASSOPERATOR = r':=' # Assign
-operators = ['AOPERATOR', 'BOPERATOR', 'ASSOPERATOR']
+operators = ['ASSOPERATOR'] + aoperators + boperators
 # t_LETTER = r'[a-zA-Z]'
 # t_SYMBOL = r'[a-zA-Z._><=;,\\:]'
 def t_WHITESPACE(t):
@@ -32,6 +40,7 @@ def t_NUMBER(t):
     return t
 t_STRING = r'\"[a-zA-Z._><=;,\\: \n\t\r0-9]*\"'
 t_SEMICOLON = r';'
+t_COMMA = r','
 # t_PARENTHESIS = r'{|}|\(|\)'
 t_LBRACE = r'{'
 t_RBRACE = r'}'
@@ -41,12 +50,14 @@ parens = ['LBRACE', 'RBRACE', 'LPAREN', 'RPAREN']
 def t_IDENTIFIER(t):
     r'[a-zA-Z][_a-zA-Z0-9]*'
     t.type = keywords.get(t.value,'IDENTIFIER')    # Check for reserved words
+    if (t.value == 'true') or (t.value == 'false'):
+        t.type = 'BKEYWORD'
     return t
 def t_COMMENT(t):
     r'//[a-zA-Z._><=;,\\: \n\t\r0-9]*\n'
     pass
 
-tokens = ['BKEYWORD', 'IDENTIFIER', 'NUMBER', 'SEMICOLON', 'STRING',  'WHITESPACE', 'COMMENT'] + list(keywords.values()) + parens + operators
+tokens = ['BKEYWORD', 'IDENTIFIER', 'NUMBER', 'SEMICOLON', 'COMMA', 'STRING',  'WHITESPACE', 'COMMENT'] + list(keywords.values()) + parens + operators
 
 # Error handling rule
 def t_error(t):
