@@ -23,9 +23,10 @@ t_TIMES = r'\*'
 t_DIVIDE = r'/'
 t_REMAIN = r'%'
 aoperators = ['PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'REMAIN']
-t_ABOPERATOR = r'==|!=|>|<|<=|>=' # Arithmetic Boolean operators
+t_ABOPERATOR = r'>|<|<=|>=' # Arithmetic Boolean operators
+t_BCOPERATOR = r'==|!=' # Boolean Compare operators
 t_LBOPERATOR = r'&&|\|\|' # Logic Boolean operators
-boperators = ['ABOPERATOR', 'LBOPERATOR']
+boperators = ['ABOPERATOR', 'BCOPERATOR', 'LBOPERATOR']
 t_ASSOPERATOR = r':=' # Assign
 operators = ['ASSOPERATOR'] + aoperators + boperators
 # t_LETTER = r'[a-zA-Z]'
