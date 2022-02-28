@@ -18,7 +18,10 @@ def p_str(p):
 
 def p_bool(p):
     '''bool : BKEYWORD'''
-    p[0] = ('Bool', p[1])
+    if p[1] == "true":
+        p[0] = ("Num", 1)
+    else:
+        p[0] = ("Num", 0)
 
 def p_lst(p):
     '''list : lstel lstconnect list
