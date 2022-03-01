@@ -1,6 +1,5 @@
 import parser
 import sys
-from nis import match
 
 counter = -1
 
@@ -45,8 +44,11 @@ def CPS(stmt, f):
             return f(("knum", stmt[1]))
         case "Str":
             return f(("kstr", stmt[1]))
-        # case "Bool":
-        #     return f(("kbool", stmt[1]))
+        case "Neg":
+            if stmt[1][0] in ["Num"]:
+                return CPS(stmt[1], lambda y : f(('kneg', y)))
+            else:
+                return CPS(("aexp", "-", ("Num", 0), stmt[1]), f)
         case "aexp":
             z = Fresh("tmp")
             return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z)))))
@@ -64,6 +66,11 @@ def CPS(stmt, f):
                 else:
                     return CPS(args[0], lambda y : aux(args[1:], vs + [y]))
             return aux(stmt[2], [])
+        # TODO: assign
+        # case "assign":
+        #     if stmt[1][0] != "Var":
+        #         raise Exception("assigning error")
+        #     return CPS(stmt[2], lambda y : ("kass", stmt[1], y))
         # TODO: case "while":  
         case "if":
             bExp = formatBexp(stmt[1])
@@ -172,6 +179,8 @@ def compile_val(v):
             return f"{v[1]}"
         case "kvar":
             return f"%{v[1]}"
+        case "kneg":
+            return f"-{compile_val(v[1])}"
         case "kop":
             return f"{compile_op(v[1])} {compile_val(v[2])}, {compile_val(v[3])}"
         # case "kcall":
@@ -302,11 +311,11 @@ preludeMain = "define i32 @main() {"
 
 def compileDecl(d):
     match d[0]:
-        case "assign":
+        case "dAssign":
             return d
-        case "def":
+        case "dDef":
             return d
-        case "main":
+        case "dMain":
             s = m("define i32 @main() {") + compile_exp(CPSB(d[1], lambda x : ("kreturn", ("knum", 0)))) + m("}\n")
             return s
 
@@ -331,7 +340,7 @@ def compileDecl(d):
 # }
 
 def compile(ast):
-    prog = [("main", ast)]
+    prog = [("dMain", ast)]
     progll = '\n'.join(list(map(compileDecl, prog)))
     # return prelude + "\n" + progll
     return progll

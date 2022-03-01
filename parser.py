@@ -60,6 +60,9 @@ def p_fa_basic(p):
     '''fa : variable
           | number'''
     p[0] = p[1]
+def p_fa_basic_neg(p):
+    '''fa : MINUS fa'''
+    p[0] = ('Neg', p[2])
 
 
 def p_bexp(p):
