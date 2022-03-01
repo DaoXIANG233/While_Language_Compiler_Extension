@@ -23,6 +23,8 @@ def formatBexp(x):
             return ("fbexp", ">", x, ("Num", 0))
         case "Num":
             return ("fbexp", ">", x, ("Num", 0))
+        case "FNum":
+            return ("fbexp", ">", x, ("Num", 0))
         # case "Bool":
         #     if 'true' == x[1]:
         #         return ("fbexp", ">", ("Num", 1), ("Num", 0))
