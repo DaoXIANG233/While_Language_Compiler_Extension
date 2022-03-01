@@ -35,6 +35,10 @@ def t_WHITESPACE(t):
     r'[ \n\t\r]+'
     pass
 # t_DIGIT = r'[0-9]'
+def t_FNUMBER(t):
+    r'\d+\.\d+'
+    t.value = float(t.value)
+    return t
 def t_NUMBER(t):
     r'[0-9]|[1-9][0-9]+'
     t.value = int(t.value)
@@ -58,7 +62,7 @@ def t_COMMENT(t):
     r'//[a-zA-Z._><=;,\\: \n\t\r0-9]*\n'
     pass
 
-tokens = ['BKEYWORD', 'IDENTIFIER', 'NUMBER', 'SEMICOLON', 'COMMA', 'STRING',  'WHITESPACE', 'COMMENT'] + list(keywords.values()) + parens + operators
+tokens = ['BKEYWORD', 'IDENTIFIER', 'FNUMBER', 'NUMBER', 'SEMICOLON', 'COMMA', 'STRING',  'WHITESPACE', 'COMMENT'] + list(keywords.values()) + parens + operators
 
 # Error handling rule
 def t_error(t):

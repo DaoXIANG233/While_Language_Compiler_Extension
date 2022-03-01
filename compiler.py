@@ -41,11 +41,13 @@ def CPS(stmt, f):
             ty = varEnv.get(stmt[1], "undef")
             return f(("kvar", stmt[1], ty))
         case "Num":
-            return f(("knum", stmt[1]))
+            return f(("knum", stmt[1], "int"))
+        case "FNum":
+            return f(("knum", stmt[1], "float"))
         case "Str":
             return f(("kstr", stmt[1]))
         case "Neg":
-            if stmt[1][0] in ["Num"]:
+            if stmt[1][0] in ["Num", "FNum"]:
                 return CPS(stmt[1], lambda y : f(('kneg', y)))
             else:
                 return CPS(("aexp", "-", ("Num", 0), stmt[1]), f)
@@ -144,7 +146,7 @@ def compile_op(op):
         case "||":
             return "or i1"
 
-def compile_dop(op):
+def compile_fop(op):
     match op:
         case "+":
             return "fadd double "
@@ -316,7 +318,7 @@ def compileDecl(d):
         case "dDef":
             return d
         case "dMain":
-            s = m("define i32 @main() {") + compile_exp(CPSB(d[1], lambda x : ("kreturn", ("knum", 0)))) + m("}\n")
+            s = m("define i32 @main() {") + compile_exp(CPSB(d[1], lambda x : ("kreturn", ("knum", 0, "int")))) + m("}\n")
             return s
 
 # def compile_decl(d: Decl) : String = d match {
@@ -356,6 +358,6 @@ if __name__ == '__main__':
     p = parser.parse(data)
     print(p)
     print("CPSB:")
-    print(CPSB(p, lambda x : ("kreturn", ("knum", 0))))
+    print(CPSB(p, lambda x : ("kreturn", ("knum", 0, "int"))))
     ll = compile(p)
     print(ll)

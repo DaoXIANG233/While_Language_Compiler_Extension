@@ -12,6 +12,10 @@ def p_num(p):
     '''number : NUMBER'''
     p[0] = ('Num', p[1])
 
+def p_fnum(p):
+    '''number : FNUMBER'''
+    p[0] = ('FNum', p[1])
+
 def p_str(p):
     '''string : STRING'''
     p[0] = ('Str', p[1])
