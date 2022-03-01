@@ -25,13 +25,6 @@ def formatBexp(x):
             return ("fbexp", ">", x, ("Num", 0))
         case "FNum":
             return ("fbexp", ">", x, ("Num", 0))
-        # case "Bool":
-        #     if 'true' == x[1]:
-        #         return ("fbexp", ">", ("Num", 1), ("Num", 0))
-        #     elif 'false' == x[1]:
-        #         return ("fbexp", ">", ("Num", 0), ("Num", 0))
-        #     else:
-        #         return x
         case _:
             return x
 
@@ -43,9 +36,9 @@ def CPS(stmt, f):
             ty = varEnv.get(stmt[1], "undef")
             return f(("kvar", stmt[1], ty))
         case "Num":
-            return f(("knum", stmt[1], "int"))
+            return f(("knum", stmt[1], "i32"))
         case "FNum":
-            return f(("knum", stmt[1], "float"))
+            return f(("knum", stmt[1], "double"))
         case "Str":
             return f(("kstr", stmt[1]))
         case "Neg":
@@ -55,14 +48,14 @@ def CPS(stmt, f):
                 return CPS(("aexp", "-", ("Num", 0), stmt[1]), f)
         case "aexp":
             z = Fresh("tmp")
-            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z)))))
+            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z, getType(("kop", stmt[1], y1, y2)))))))
         case "bexp":
             stmt = formatBexp(stmt)
             z = Fresh("tmp")
-            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z)))))
+            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z, getType(("kop", stmt[1], y1, y2)))))))
         case "fbexp":
             z = Fresh("tmp")
-            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z)))))
+            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z, getType(("kop", stmt[1], y1, y2)))))))
         case "call":
             def aux(args, vs):
                 if (0 == len(args)):
@@ -177,6 +170,24 @@ def compile_fop(op):
         case "||":
             return "or i1"
 
+def getType(e):
+    match e[0]:
+        case "knum":
+            return e[2]
+        case "kvar":
+            return e[2]
+        case "kneg":
+            return getType(e[1])
+        case "kop":
+            ty1 = getType(e[2])
+            ty2 = getType(e[3])
+            if ty1 == "double" or ty2 == "double":
+                return "double"
+            else:
+                return "i32"
+        case _:
+            return "i32"
+
 def compile_val(v):
     match v[0]:
         case "knum":
@@ -186,24 +197,16 @@ def compile_val(v):
         case "kneg":
             return f"-{compile_val(v[1])}"
         case "kop":
-            return f"{compile_op(v[1])} {compile_val(v[2])}, {compile_val(v[3])}"
+            ty = getType(v)
+            if ty == "double":
+                return f"{compile_fop(v[1])} {compile_val(v[2])}, {compile_val(v[3])}"
+            else:
+                return f"{compile_op(v[1])} {compile_val(v[2])}, {compile_val(v[3])}"
         # case "kcall":
         case _:
             return "unknown kval"
 
 # def compile_val(v: KVal) : String = v match {
-#   case KNum(i) => s"$i"
-#   case KDNum(d) => s"$d"
-#   case KNeg(x) => s"-${compile_val(x)}"
-#   case KVar(s, ty) => s"%$s"
-#   case Kop(op, x1, x2, ty) => {
-#       if (ty == "double") {
-#         s"${compile_dop(op)} ${compile_val(x1)}, ${compile_val(x2)}"
-#       } else {
-#         s"${compile_op(op)} ${compile_val(x1)}, ${compile_val(x2)}"
-#       }
-      
-#     }
 #   case KCall(x1, args) => 
 #     val funType = globalFuns.getOrElse(x1, (List(), "void"))
 #     if (funType._2 == "void"){
@@ -216,7 +219,8 @@ def compile_val(v):
 def compile_exp(e):
     match e[0]:
         case "kreturn":
-            return i("ret void")
+            ty = getType(e[1])
+            return i(f"ret {ty} {compile_val(e[1])}")
         case "klet":
             return i(f"%{e[1]} = {compile_val(e[2])}") + compile_exp(e[3])
         case "kif":
@@ -253,15 +257,6 @@ def compile_exp(e):
 #         i"%$x = ${compile_val(kValTup1._2)}" ++ compile_exp(e)
 #       }
 #     }
-#   case KIf(x, bl1, bl2) => {
-#     val if_br = Fresh("if_branch")
-#     val else_br = Fresh("else_branch")
-#     i"br i1 %$x, label %$if_br, label %$else_br" ++
-#     l"\n$if_br" ++
-#     compile_exp(bl1) ++
-#     l"\n$else_br" ++ 
-#     compile_exp(bl2)
-#   }
 # }
 
 prelude = """
@@ -320,7 +315,7 @@ def compileDecl(d):
         case "dDef":
             return d
         case "dMain":
-            s = m("define i32 @main() {") + compile_exp(CPSB(d[1], lambda x : ("kreturn", ("knum", 0, "int")))) + m("}\n")
+            s = m("define i32 @main() {") + compile_exp(CPSB(d[1], lambda x : ("kreturn", ("knum", 0, "i32")))) + m("}\n")
             return s
 
 # def compile_decl(d: Decl) : String = d match {
@@ -360,6 +355,6 @@ if __name__ == '__main__':
     p = parser.parse(data)
     print(p)
     print("CPSB:")
-    print(CPSB(p, lambda x : ("kreturn", ("knum", 0, "int"))))
+    print(CPSB(p, lambda x : ("kreturn", ("knum", 0, "i32"))))
     ll = compile(p)
     print(ll)
