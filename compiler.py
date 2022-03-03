@@ -8,12 +8,12 @@ def Fresh(x):
     counter += 1
     return x + "_" + str(counter)
 
-def formatBexp(x):
+def format_bexp(x):
     match x[0]:
         case "bexp":
             if x[1] in ['&&', '||']:
-                left = formatBexp(x[2])
-                right = formatBexp(x[3])
+                left = format_bexp(x[2])
+                right = format_bexp(x[3])
                 return ("fbexp", x[1], left, right)
             else:
                 return ("fbexp", x[1], x[2], x[3])
@@ -28,7 +28,53 @@ def formatBexp(x):
         case _:
             return x
 
+# def format_aexp(x):
+#     match x[0]:
+#         # case "bexp":
+#         #     if x[1] in ['&&', '||']:
+#         #         left = format_aexp(x[2])
+#         #         right = format_aexp(x[3])
+#         #         return ("fbexp", x[1], left, right)
+#         #     else:
+#         #         return ("faexp", x[1], x[2], x[3])
+#         case "aexp":
+#             return ("faexp", x[1], x[2], x[3])
+#         case "Neg":
+#             if x[1][0] in ["Num", "FNum"]:
+#                 return CPS(x[1], lambda y : f(('kneg', y)))
+#             else:
+#                 return ("faexp", "-", ("Num", 0), x[1])
+#         case "Var":
+#             return ("faexp", "+", x, ("Num", 0))
+#         case "Num":
+#             return ("faexp", "+", x, ("Num", 0))
+#         case "FNum":
+#             return ("faexp", "+", x, ("Num", 0))
+#         case _:
+#             return x
+
+def get_type(e):
+    match e[0]:
+        case "knum":
+            return e[2]
+        case "kvar":
+            return e[2]
+        case "kneg":
+            return get_type(e[1])
+        case "kop":
+            ty1 = get_type(e[2])
+            ty2 = get_type(e[3])
+            if ty1 == "double" or ty2 == "double":
+                return "double"
+            else:
+                return "i32"
+        case "kload":
+            return get_type(e[1])
+        case _:
+            return "i32"
+
 varEnv = {}
+alloca = []
 
 def CPS(stmt, f):
     match stmt[0]:
@@ -48,14 +94,14 @@ def CPS(stmt, f):
                 return CPS(("aexp", "-", ("Num", 0), stmt[1]), f)
         case "aexp":
             z = Fresh("tmp")
-            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z, getType(("kop", stmt[1], y1, y2)))))))
+            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z, get_type(("kop", stmt[1], y1, y2)))))))
         case "bexp":
-            stmt = formatBexp(stmt)
+            stmt = format_bexp(stmt)
             z = Fresh("tmp")
-            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z, getType(("kop", stmt[1], y1, y2)))))))
+            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z, get_type(("kop", stmt[1], y1, y2)))))))
         case "fbexp":
             z = Fresh("tmp")
-            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z, getType(("kop", stmt[1], y1, y2)))))))
+            return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z, get_type(("kop", stmt[1], y1, y2)))))))
         case "call":
             def aux(args, vs):
                 if (0 == len(args)):
@@ -63,14 +109,38 @@ def CPS(stmt, f):
                 else:
                     return CPS(args[0], lambda y : aux(args[1:], vs + [y]))
             return aux(stmt[2], [])
-        # TODO: assign
-        # case "assign":
-        #     if stmt[1][0] != "Var":
-        #         raise Exception("assigning error")
-        #     return CPS(stmt[2], lambda y : ("kass", stmt[1], y))
+        case "assign":
+            if stmt[1][0] != "Var":
+                raise Exception("assigning error")
+            else:
+                def kassign(a, b):
+                    ty = get_type(b)
+                    varEnv[a[1]] = ty
+                    v = (a[0], a[1], ty)
+                    return ("kass", v, b, f(v))
+                
+                if (varEnv.get(stmt[1][1]) != None) and (stmt[1][1] not in alloca):
+                    alloca.append(stmt[1][1])
+
+                #FIXME: n := k when k in alloca -> %n = load xxx, xxx* %k, align 4
+                # if stmt[2][1] in ["Num", "FNum"]:
+                #     right = ("aexp", "+", stmt[2], ("Num", 0))
+                # elif stmt[2][1] == "Var":
+                #     if stmt[2][2] in alloca:
+                #         right = ("load", stmt[2])
+                #     else:
+                #         right = ("aexp", "+", stmt[2], ("Num", 0))
+                # else:
+                #     right = stmt[2]
+
+                # return CPS(stmt[1], lambda y1 : CPS(right, lambda y2 : kassign(y1, y2)))
+                return CPS(stmt[1], lambda y1 : CPS(stmt[2], lambda y2 : kassign(y1, y2)))
+        # case "load":
+        #     return CPS(stmt[1], lambda y : ("kload", y))
+
         # TODO: case "while":  
         case "if":
-            bExp = formatBexp(stmt[1])
+            bExp = format_bexp(stmt[1])
             blIf = stmt[2]
             blEl = stmt[3]
             z = Fresh("tmp")
@@ -85,22 +155,23 @@ def CPSB(bl, f):
     if (1 == len(bl)):
         return CPS(bl[0], f)
     else : 
-        any = Fresh("any")
-        return CPS(bl[0], lambda v : ("klet", any, v, CPSB(bl[1:], f)))
+        # any = Fresh("any")
+        # return CPS(bl[0], lambda v : ("klet", any, v, CPSB(bl[1:], f)))
+        return CPS(bl[0], lambda v : CPSB(bl[1:], f))
 
-bl1 = [('call', 'write', [('Str', '"Input a number "')]), ('call', 'read', [('Var', 'n')]), ('call', 'write', [('Str', '"Yes"')])]
-print(CPSB(bl1, lambda x : ("kreturn", x)))
+# bl1 = [('call', 'write', [('Str', '"Input a number "')]), ('call', 'read', [('Var', 'n')]), ('call', 'write', [('Str', '"Yes"')])]
+# print(CPSB(bl1, lambda x : ("kreturn", x)))
 
-# bl2 = [('bexp', '==', ('Num', 2), ('Num', 3)), ('bexp', '||', ('Bool', 'true'), ('Bool', 'false')), ('bexp', '!=', ('Num', 2), ('Num', 1))]
+# bl2 = [('assign', ('Var', 'n'), ('Num', 1))]
 # print(CPSB(bl2, lambda x : ("kreturn", x)))
 
-# bl3 = [('bexp', '&&', ('Bool', 'true'), ('Var', 'n'))]
+# bl3 = [('assign', ('Var', 'n'), ('FNum', 1.0))]
 # print(CPSB(bl3, lambda x : ("kreturn", x)))
 
-# bl4 = [('if', ('Bool', 'true'), [('assign', ('Var', 'n'), ('aexp', '/', ('Var', 'n'), ('Num', 2)))], [('assign', ('Var', 'n'), ('aexp', '+', ('aexp', '*', ('Num', 3), ('Var', 'n')), ('Num', 1)))])]
+# bl4 = [('assign', ('Var', 'n'), ('aexp', '/', ('Var', 'n'), ('Num', 2)))]
 # print(CPSB(bl4, lambda x : ("kreturn", x)))
 
-# bl5 = [('if', ('bexp', '&&', ('Bool', 'true'), ('bexp', '||', ('Num', 1), ('Var', 'n'))), [('assign', ('Var', 'n'), ('aexp', '/', ('Var', 'n'), ('Num', 2)))], [('assign', ('Var', 'n'), ('aexp', '+', ('aexp', '*', ('Num', 3), ('Var', 'n')), ('Num', 1)))])]
+# bl5 = [('assign', ('Var', 'n'), ('bexp', '&&', ('Var', 'n'), ('FNum', 2.0)))]
 # print(CPSB(bl5, lambda x : ("kreturn", x)))
 
 
@@ -170,24 +241,6 @@ def compile_fop(op):
         case "||":
             return "or i1"
 
-def getType(e):
-    match e[0]:
-        case "knum":
-            return e[2]
-        case "kvar":
-            return e[2]
-        case "kneg":
-            return getType(e[1])
-        case "kop":
-            ty1 = getType(e[2])
-            ty2 = getType(e[3])
-            if ty1 == "double" or ty2 == "double":
-                return "double"
-            else:
-                return "i32"
-        case _:
-            return "i32"
-
 def compile_val(v):
     match v[0]:
         case "knum":
@@ -197,7 +250,7 @@ def compile_val(v):
         case "kneg":
             return f"-{compile_val(v[1])}"
         case "kop":
-            ty = getType(v)
+            ty = get_type(v)
             if ty == "double":
                 return f"{compile_fop(v[1])} {compile_val(v[2])}, {compile_val(v[3])}"
             else:
@@ -219,10 +272,15 @@ def compile_val(v):
 def compile_exp(e):
     match e[0]:
         case "kreturn":
-            ty = getType(e[1])
+            ty = get_type(e[1])
             return i(f"ret {ty} {compile_val(e[1])}")
         case "klet":
             return i(f"%{e[1]} = {compile_val(e[2])}") + compile_exp(e[3])
+        case "kass":
+            if e[1][1] in alloca:
+                return i(f"store {get_type(e[2])} {compile_val(e[2])}, {e[1][2]}* %{e[1][1]}, align 4") + compile_exp(e[3])
+            else:
+                return i(f"%{e[1][1]} = {compile_val(e[2])}") + compile_exp(e[3])
         case "kif":
             ifBr = Fresh("if_branch")
             elseBr = Fresh("else_branch")
@@ -306,16 +364,21 @@ define void @printChar(i32 %x) {
 
 """
 
-preludeMain = "define i32 @main() {"
+def compile_alloca():
+    s = ""
+    for a in alloca:
+        s = s + i(f"%{a} = alloca {varEnv.get(a)}, align 4")
+    return s
 
-def compileDecl(d):
+def compile_decl(d):
     match d[0]:
         case "dAssign":
             return d
         case "dDef":
             return d
         case "dMain":
-            s = m("define i32 @main() {") + compile_exp(CPSB(d[1], lambda x : ("kreturn", ("knum", 0, "i32")))) + m("}\n")
+            cpsb = CPSB(d[1], lambda x : ("kreturn", ("knum", 0, "i32")))
+            s = m("define i32 @main() {") + compile_alloca() + compile_exp(cpsb) + m("}\n")
             return s
 
 # def compile_decl(d: Decl) : String = d match {
@@ -340,7 +403,7 @@ def compileDecl(d):
 
 def compile(ast):
     prog = [("dMain", ast)]
-    progll = '\n'.join(list(map(compileDecl, prog)))
+    progll = '\n'.join(list(map(compile_decl, prog)))
     # return prelude + "\n" + progll
     return progll
 
@@ -348,13 +411,16 @@ if __name__ == '__main__':
     filename = sys.argv[1]
     file = open(filename)
     data = file.read()
-    print("'While' language file:")
+    print("\n'While' language file:")
     print(data)
     file.close()
-    print("AST generated:")
+    print("\nAST generated:")
     p = parser.parse(data)
     print(p)
-    print("CPSB:")
+    print("\nCPSB:")
     print(CPSB(p, lambda x : ("kreturn", ("knum", 0, "i32"))))
+    varEnv = {}
+    alloca = []
+    print("\nLLVM: ")
     ll = compile(p)
     print(ll)
