@@ -122,23 +122,14 @@ def CPS(stmt, f):
                 if (varEnv.get(stmt[1][1]) != None) and (stmt[1][1] not in alloca):
                     alloca.append(stmt[1][1])
 
-                #FIXME: n := k when k in alloca -> %n = load xxx, xxx* %k, align 4
-                # if stmt[2][1] in ["Num", "FNum"]:
-                #     right = ("aexp", "+", stmt[2], ("Num", 0))
-                # elif stmt[2][1] == "Var":
-                #     if stmt[2][2] in alloca:
-                #         right = ("load", stmt[2])
-                #     else:
-                #         right = ("aexp", "+", stmt[2], ("Num", 0))
-                # else:
-                #     right = stmt[2]
-
-                # return CPS(stmt[1], lambda y1 : CPS(right, lambda y2 : kassign(y1, y2)))
                 return CPS(stmt[1], lambda y1 : CPS(stmt[2], lambda y2 : kassign(y1, y2)))
-        # case "load":
-        #     return CPS(stmt[1], lambda y : ("kload", y))
+                
+        # TODO: entry, cond, block, end
+        case "while":
+            cond = stmt[1]
+            bl = stmt[2]
+            return 
 
-        # TODO: case "while":  
         case "if":
             bExp = format_bexp(stmt[1])
             blIf = stmt[2]
@@ -154,7 +145,7 @@ def CPS(stmt, f):
 def CPSB(bl, f):
     if (1 == len(bl)):
         return CPS(bl[0], f)
-    else : 
+    else:
         # any = Fresh("any")
         # return CPS(bl[0], lambda v : ("klet", any, v, CPSB(bl[1:], f)))
         return CPS(bl[0], lambda v : CPSB(bl[1:], f))
@@ -174,6 +165,62 @@ def CPSB(bl, f):
 # bl5 = [('assign', ('Var', 'n'), ('bexp', '&&', ('Var', 'n'), ('FNum', 2.0)))]
 # print(CPSB(bl5, lambda x : ("kreturn", x)))
 
+#TODO: format ast to include lambda, global variables, imports.
+# def format_ast(ast):
+#     def extract_lambda():
+#         return
+
+kExps = ["klet", "kreturn", "kass", "kif", "kload"]
+kVals = ["knum", "kvar", "kneg", "kop"]
+
+def format_klang(k):
+    def load_var(e):
+        def extract_vars(kval, vars = []):
+            match kval[0]:
+                case "knum":
+                    return (vars, kval)
+                case "kvar":
+                    if kval[1] in alloca:
+                        tmp = Fresh("tmp")
+                        return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
+                    else:
+                        return (vars, kval)
+                case "kneg":
+                    return extract_vars(kval[1], vars)
+                case "kop":
+                    left = extract_vars(kval[2], vars)
+                    right = extract_vars(kval[3], vars)
+                    return  (left[0]+right[0], ("kop", kval[1], left[1], right[1])) 
+                case _:
+                    return vars
+        match e[0]:
+            case "klet":
+                (vars, newKval) = extract_vars(e[2])
+                rest = load_var(e[3])
+                e = ("klet", e[1], newKval, rest)
+                for i in vars:
+                    e = ("kload", i[1], i[0], e)
+                return e
+            case "kreturn":
+                (vars, newKval) = extract_vars(e[1])
+                e = ("kreturn", newKval)
+                for i in vars:
+                    e = ("kload", i[1], i[0], e)
+                return e
+            case "kass":
+                (vars, newKval) = extract_vars(e[2])
+                rest = load_var(e[3])
+                e = ("kass", e[1], newKval, rest)
+                for i in vars:
+                    e = ("kload", i[1], i[0], e)
+                return e
+            case "kif":
+                return (e[0], e[1], load_var(e[2]), load_var(e[3]))
+            case "kload":
+                return(e[0], e[1], e[2], load_var(e[3]))
+    
+    k = load_var(k)
+    return k
 
 # String interpolations
 def i(str):
@@ -280,7 +327,10 @@ def compile_exp(e):
             if e[1][1] in alloca:
                 return i(f"store {get_type(e[2])} {compile_val(e[2])}, {e[1][2]}* %{e[1][1]}, align 4") + compile_exp(e[3])
             else:
-                return i(f"%{e[1][1]} = {compile_val(e[2])}") + compile_exp(e[3])
+                eTmp = ("kop", "+", e[2], ("knum", 0, "i32"))
+                return i(f"%{e[1][1]} = {compile_val(eTmp)}") + compile_exp(e[3])
+        case "kload":
+            return i(f"%{e[1]} = load {e[2][2]}, {e[2][2]}* %{e[2][1]}, align 4") + compile_exp(e[3])
         case "kif":
             ifBr = Fresh("if_branch")
             elseBr = Fresh("else_branch")
@@ -378,6 +428,10 @@ def compile_decl(d):
             return d
         case "dMain":
             cpsb = CPSB(d[1], lambda x : ("kreturn", ("knum", 0, "i32")))
+            cpsb = format_klang(cpsb)
+            print("after format_klang:")
+            print(cpsb)
+            # cpsb = CPSB(d[1], lambda x : ("kreturn", x))
             s = m("define i32 @main() {") + compile_alloca() + compile_exp(cpsb) + m("}\n")
             return s
 
@@ -418,6 +472,7 @@ if __name__ == '__main__':
     p = parser.parse(data)
     print(p)
     print("\nCPSB:")
+    # print(CPSB(p, lambda x : ("kreturn", x)))
     print(CPSB(p, lambda x : ("kreturn", ("knum", 0, "i32"))))
     varEnv = {}
     alloca = []
