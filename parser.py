@@ -187,6 +187,9 @@ def p_statements_lst(p):
 def p_block(p):
     '''block : LBRACE stmts RBRACE'''
     p[0] = p[2]
+def p_block_single(p):
+    '''block : stmt'''
+    p[0] = [p[1]]
 
 def p_error(p):
     if not p:

@@ -132,8 +132,12 @@ def CPS(stmt, f):
                 return ("knone", None)
             cond = format_bexp(stmt[1])
             bl = stmt[2]
+            entryWhile = Fresh("while_loop")
+            condWhile = Fresh("while_cond")
+            bodyWhile = Fresh("while_body")
+            endWhile = Fresh("while_end")
             z = Fresh("tmp")
-            return CPS(cond[2], lambda y1 : CPS(cond[3], lambda y2 : ("kwhile", z, ( "klet", z, ("kop", cond[1], y1, y2), ("knone", None)), CPSB(bl, lambda x : registerLast(x)), f(reg))))
+            return CPS(cond[2], lambda y1 : CPS(cond[3], lambda y2 : ("kwhile", z, ( "klet", z, ("kop", cond[1], y1, y2), ("knone", None)), CPSB(bl, lambda x : registerLast(x)), f(reg), (entryWhile, condWhile, bodyWhile, endWhile))))
 
         case "if":
             ifReg = ("knone", None)
@@ -156,7 +160,8 @@ def CPS(stmt, f):
             phi = Fresh("tmp")
             ifLabel = Fresh("if_branch")
             elseLabel = Fresh("else_branch")
-            return CPS(bExp[2], lambda y1 : CPS(bExp[3], lambda y2 : ("klet", z, ("kop", bExp[1], y1, y2), ("kif", z, CPSB(blIf, lambda x1 : registerIf(x1)), CPSB(blEl, lambda x2 : registerElse(x2)), ("klet", phi, ("kphi", (ifReg, ifLabel), (elseReg, elseLabel), get_type(ifReg)), f(phi)), (ifLabel, elseLabel)))))
+            endLabel = Fresh("if_end")
+            return CPS(bExp[2], lambda y1 : CPS(bExp[3], lambda y2 : ("klet", z, ("kop", bExp[1], y1, y2), ("kif", z, CPSB(blIf, lambda x1 : registerIf(x1)), CPSB(blEl, lambda x2 : registerElse(x2)), ("klet", phi, ("kphi", (ifReg, ifLabel), (elseReg, elseLabel), get_type(ifReg)), f(("kvar", phi, get_type(ifReg)))), (ifLabel, elseLabel, endLabel)))))
         case _:
             return ("unknown")
 
@@ -246,11 +251,47 @@ def format_klang(k):
                 cond = load_var(e[2])
                 body = load_var(e[3])
                 rest = load_var(e[4])
-                return ("kwhile", e[1], cond, body, rest)
+                return ("kwhile", e[1], cond, body, rest, e[5])
             case "knone":
+                return e
+
+    def manage_branches(e):
+        # kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone"]
+        def last_branch(ke):
+            match ke[0]:
+                case "klet":
+                    last = last_branch(ke[3])
+                case "kass":
+                    last = last_branch(ke[3])
+                case "kif":
+                    last = ke[5][-1]
+                case "kload":
+                    last = last_branch(ke[3])
+                case "kwhile":
+                    last = ke[5][-1]
+                case _:
+                    last = None
+            return last
+        match e[0]:
+            case "klet":
+                return ("klet", e[1], e[2], manage_branches(e[3]))
+            case "kass":
+                return ("kass", e[1], e[2], manage_branches(e[3]))
+            case "kif":
+                oldPhi = e[4][2]
+                ifLast = last_branch(e[2]) or oldPhi[1][1]
+                elseLast = last_branch(e[3]) or oldPhi[2][1]
+                newPhi = ("kphi", (oldPhi[1][0], ifLast), (oldPhi[2][0], elseLast), oldPhi[3])
+                return ("kif", e[1], manage_branches(e[2]), manage_branches(e[3]),("klet", e[4][1], newPhi, e[4][3]), e[5])
+            case "kload":
+                return ("kload", e[1], e[2], manage_branches(e[3]))
+            case "kwhile":
+                return ("kwhile", e[1], e[2], manage_branches(e[3]), manage_branches(e[4]), e[5])
+            case _:
                 return e
     
     k = load_var(k)
+    k = manage_branches(k)
     return k
 
 # String interpolations
@@ -367,13 +408,13 @@ def compile_exp(e):
         case "kif":
             ifBr = e[5][0]
             elseBr = e[5][1]
-            end = Fresh("if_end")
+            end = e[5][2]
             return i(f"br i1 %{e[1]}, label %{ifBr}, label %{elseBr}") + l(f"\n{ifBr}") + compile_exp(e[2]) + i(f"br label %{end}") + l(f"\n{elseBr}") + compile_exp(e[3]) + i(f"br label %{end}") + l(f"\n{end}") + compile_exp(e[4])
         case "kwhile":
-            entry = Fresh("while_loop")
-            cond = Fresh("while_cond")
-            body = Fresh("while_body")
-            end = Fresh("while_end")
+            entry = e[5][0]
+            cond = e[5][1]
+            body = e[5][2]
+            end = e[5][3]
             return i(f"br label %{entry}") + l(f"\n{entry}") + i(f"br label %{cond}") + l(f"\n{cond}") + compile_exp(e[2]) + i(f"br i1 %{e[1]}, label %{body}, label %{end}") + l(f"\n{body}") + compile_exp(e[3]) + i(f"br label %{cond}") + l(f"\n{end}") + compile_exp(e[4])
         case "knone":
             return ""
