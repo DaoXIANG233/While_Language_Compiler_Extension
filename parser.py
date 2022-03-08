@@ -63,7 +63,8 @@ def p_fa(p):
     p[0] = p[2]
 def p_fa_basic(p):
     '''fa : variable
-          | number'''
+          | number
+          | call'''
     p[0] = p[1]
 def p_fa_basic_neg(p):
     '''fa : MINUS fa'''
@@ -145,9 +146,12 @@ def p_statement_skip(p):
 def p_statement_assign(p):
     '''stmt : variable ASSOPERATOR aexp'''
     p[0] = ('assign', p[1], p[3])
-def p_statement_call(p):
-    '''stmt : IDENTIFIER LPAREN list RPAREN'''
+def p_call(p):
+    '''call : IDENTIFIER LPAREN list RPAREN'''
     p[0] = ('call', p[1], p[3])
+def p_statement_call(p):
+    '''stmt : call'''
+    p[0] = p[1]
 # def p_statement_write_id(p):
 #     '''stmt : WRITE variable
 #             | WRITE LPAREN variable RPAREN'''
