@@ -217,27 +217,33 @@ def format_klang(k):
                     return (vars, kval)
                 case "kvar":
                     if kval[1] in alloca:
-                        tmp = Fresh("tmp")
-                        return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
+                        # tmp = Fresh("tmp")
+                        # return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
+                        if kval not in [x[0] for x in vars]:
+                            tmp = Fresh("tmp")
+                            return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
+                        else:
+                            tmp = [x[1] for x in vars if x[0] == kval][-1]
+                            return (vars, ("kvar", tmp, kval[2]))
                     else:
                         return (vars, kval)
                 case "kneg":
                     return extract_vars(kval[1], vars)
                 case "kop":
                     left = extract_vars(kval[2], vars)
-                    right = extract_vars(kval[3], vars)
-                    return (left[0]+right[0], ("kop", kval[1], left[1], right[1])) 
+                    right = extract_vars(kval[3], left[0])
+                    return (right[0], ("kop", kval[1], left[1], right[1])) 
                 case "kphi":
                     br1 = extract_vars(kval[1][0], vars)
-                    br2 = extract_vars(kval[2][0], vars)
-                    return (br1[0]+br2[0], ("kphi", (br1[1], kval[1][1]), (br2[1], kval[2][1]), kval[3]))
+                    br2 = extract_vars(kval[2][0], br1[0])
+                    return (br2[0], ("kphi", (br1[1], kval[1][1]), (br2[1], kval[2][1]), kval[3]))
                     # return (vars, kval)
                 case "kcall":
                     eVars = []
                     newKvals = []
                     for i in kval[2]:
-                        e = extract_vars(i)
-                        eVars += e[0]
+                        e = extract_vars(i, eVars)
+                        eVars = e[0]
                         newKvals += [e[1]]
                     return (eVars, ("kcall", kval[1], newKvals, kval[3]))
                 case _:
@@ -451,7 +457,7 @@ def compile_fop(op):
 
 
 def compile_args(args):
-    return ",".join([f"{get_type(a)} {compile_val(a)}" for a in args])
+    return ", ".join([f"{get_type(a)} {compile_val(a)}" for a in args])
 
 def compile_val(v):
     match v[0]:
