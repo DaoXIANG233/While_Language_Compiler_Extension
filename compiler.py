@@ -1,3 +1,6 @@
+# python3 compiler.py test/test.while
+# lli -march=arm64 testll/test2.ll 
+
 import parser
 import sys
 
@@ -324,69 +327,68 @@ def format_klang(k):
                 return ("kload", e[1], e[2], manage_branches(e[3]))
             case "kwhile":
                 return ("kwhile", e[1], e[2], manage_branches(e[3]), manage_branches(e[4]), e[5])
+            case "kcallv":
+                return ("kcallv", e[1], e[2], manage_branches(e[3]))
             case _:
                 return e
 
-    # def type_conversion(e):
-    #     # kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone"]
-    #     def extract_vars(kval, vars = []):
-    #         match kval[0]:
-    #             case "knum":
-    #                 return (vars, kval)
-    #             case "kvar":
-    #                 if kval[1] in alloca:
-    #                     tmp = Fresh("tmp")
-    #                     return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
-    #                 else:
-    #                     return (vars, kval)
-    #             case "kneg":
-    #                 return extract_vars(kval[1], vars)
-    #             case "kop":
-    #                 left = extract_vars(kval[2], vars)
-    #                 right = extract_vars(kval[3], vars)
-    #                 return  (left[0]+right[0], ("kop", kval[1], left[1], right[1])) 
-    #             case "kphi":
-    #                 br1 = extract_vars(kval[1][0], vars)
-    #                 br2 = extract_vars(kval[2][0], vars)
-    #                 return (br1[0]+br2[0], ("kphi", (br1[1], kval[1][1]), (br2[1], kval[2][1]), kval[3]))
-    #                 # return (vars, kval)
-    #             case _:
-    #                 return (vars, kval)
-    #     match e[0]:
-    #         case "klet":
-    #             (vars, newKval) = extract_vars(e[2])
-    #             rest = load_var(e[3])
-    #             e = ("klet", e[1], newKval, rest)
-    #             for i in vars:
-    #                 e = ("kload", i[1], i[0], e)
-    #             return e
-    #         case "kreturn":
-    #             (vars, newKval) = extract_vars(e[1])
-    #             e = ("kreturn", newKval)
-    #             for i in vars:
-    #                 e = ("kload", i[1], i[0], e)
-    #             return e
-    #         case "kass":
-    #             (vars, newKval) = extract_vars(e[2])
-    #             rest = load_var(e[3])
-    #             e = ("kass", e[1], newKval, rest)
-    #             for i in vars:
-    #                 e = ("kload", i[1], i[0], e)
-    #             return e
-    #         case "kif":
-    #             return ("kif", e[1], load_var(e[2]), load_var(e[3]), load_var(e[4]), e[5])
-    #         case "kload":
-    #             return(e[0], e[1], e[2], load_var(e[3]))
-    #         case "kwhile":
-    #             cond = load_var(e[2])
-    #             body = load_var(e[3])
-    #             rest = load_var(e[4])
-    #             return ("kwhile", e[1], cond, body, rest, e[5])
-    #         case "knone":
-    #             return e
+    def type_conversion(e):
+        # kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
+        def kval_type_change(kval):
+            match kval[0]:
+                case "kneg":
+                    (lst, newVal) = kval_type_change(kval[1])
+                    return (lst, ("kneg", newVal))
+                case "kop":
+                    retLst = []
+                    ty = get_type(kval)
+                    lV = kval[2]
+                    rV = kval[3]
+                    lTy = get_type(lV)
+                    rTy = get_type(rV)
+                    if lTy != ty:
+                        lz = Fresh("tmp")
+                        retLst += [(lz, ("kcall", f"{lTy}_to_{ty}", [lV], ty))]
+                        lV = ("kvar", lz, ty)
+                    if rTy != ty:
+                        rz = Fresh("tmp")
+                        retLst += [(rz, ("kcall", f"{rTy}_to_{ty}", [rV], ty))]
+                        rV = ("kvar", rz, ty)
+                    return  (retLst, ("kop", kval[1], lV, rV))
+                case _:
+                    return ([], kval)
+        match e[0]:
+            case "klet":
+                (lst, newVal) = kval_type_change(e[2])
+                exp = ("klet", e[1], newVal, type_conversion(e[3]))
+                for i in lst:
+                    exp = ("klet", i[0], i[1], exp)
+                return exp
+            case "kreturn":
+                return e
+            case "kass":
+                (lst, newVal) = kval_type_change(e[2])
+                exp = ("kass", e[1], newVal, type_conversion(e[3]))
+                for i in lst:
+                    exp = ("klet", i[0], i[1], exp)
+                return exp
+            case "kif":
+                return ("kif", e[1], type_conversion(e[2]), type_conversion(e[3]), type_conversion(e[4]), e[5])
+            case "kload":
+                return(e[0], e[1], e[2], type_conversion(e[3]))
+            case "kwhile":
+                cond = type_conversion(e[2])
+                body = type_conversion(e[3])
+                rest = type_conversion(e[4])
+                return ("kwhile", e[1], cond, body, rest, e[5])
+            case "kcallv":
+                return ("kcallv", e[1], e[2], type_conversion(e[3]))
+            case "knone":
+                return e
     
     k = load_var(k)
     k = manage_branches(k)
+    k = type_conversion(k)
     return k
 
 # String interpolations
@@ -609,7 +611,7 @@ define double @i32_to_double(i32 %x) {
 
 define i32 @double_to_i32(double %x) {
    %t0 = fptosi double %x to i32
-   ret double %t0
+   ret i32 %t0
 }
 
 """
