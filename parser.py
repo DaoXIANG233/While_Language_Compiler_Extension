@@ -35,8 +35,7 @@ def p_lst(p):
     else:
         p[0] = [p[1]]
 def p_lst_lstel(p):
-    '''lstel : variable
-             | number
+    '''lstel : aexp
              | bool
              | string'''
     p[0] = p[1]
