@@ -54,6 +54,7 @@ def format_bexp(x):
 #             return x
 
 def get_type(e):
+    # kVals = ["knum", "kvar", "kneg", "kop", "kphi"]
     match e[0]:
         case "knum":
             return e[2]
@@ -70,11 +71,17 @@ def get_type(e):
                 return "i32"
         case "kload":
             return get_type(e[1])
+        case "kphi":
+            return e[3]
+        case "kcall":
+            return e[3]
         case _:
             return "i32"
 
 varEnv = {}
 alloca = []
+funEnv = {  "i32_to_double" : "double",
+            "double_to_i32" : "i32"}
 
 def CPS(stmt, f):
     match stmt[0]:
@@ -105,7 +112,12 @@ def CPS(stmt, f):
         case "call":
             def aux(args, vs):
                 if (0 == len(args)):
-                    return f(("kcall", stmt[1], vs))
+                    ty = funEnv.get(stmt[1])
+                    if ty:
+                        z = Fresh("tmp")
+                        return ("klet", z, ("kcall", stmt[1], vs, ty), f(("kvar", z, ty)))
+                    else:
+                        return ("kcallv", stmt[1], vs, f(("knone", None)))
                 else:
                     return CPS(args[0], lambda y : aux(args[1:], vs + [y]))
             return aux(stmt[2], [])
@@ -194,8 +206,8 @@ def CPSB(bl, f):
 #     def extract_lambda():
 #         return
 
-kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone"]
-kVals = ["knum", "kvar", "kneg", "kop", "kphi"]
+kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
+kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall"]
 
 def format_klang(k):
     def load_var(e):
@@ -214,12 +226,20 @@ def format_klang(k):
                 case "kop":
                     left = extract_vars(kval[2], vars)
                     right = extract_vars(kval[3], vars)
-                    return  (left[0]+right[0], ("kop", kval[1], left[1], right[1])) 
+                    return (left[0]+right[0], ("kop", kval[1], left[1], right[1])) 
                 case "kphi":
                     br1 = extract_vars(kval[1][0], vars)
                     br2 = extract_vars(kval[2][0], vars)
                     return (br1[0]+br2[0], ("kphi", (br1[1], kval[1][1]), (br2[1], kval[2][1]), kval[3]))
                     # return (vars, kval)
+                case "kcall":
+                    eVars = []
+                    newKvals = []
+                    for i in kval[2]:
+                        e = extract_vars(i)
+                        eVars += e[0]
+                        newKvals += [e[1]]
+                    return (eVars, ("kcall", kval[1], newKvals, kval[3]))
                 case _:
                     return (vars, kval)
         match e[0]:
@@ -247,6 +267,17 @@ def format_klang(k):
                 return ("kif", e[1], load_var(e[2]), load_var(e[3]), load_var(e[4]), e[5])
             case "kload":
                 return(e[0], e[1], e[2], load_var(e[3]))
+            case "kcallv":
+                newArgs = []
+                allVars = []
+                for j in e[2]:
+                    (vars, newKval) = extract_vars(j)
+                    newArgs += [newKval]
+                    allVars += vars
+                e = ("kcallv", e[1], newArgs, load_var(e[3]))
+                for i in allVars:
+                    e = ("kload", i[1], i[0], e)
+                return e
             case "kwhile":
                 cond = load_var(e[2])
                 body = load_var(e[3])
@@ -289,6 +320,64 @@ def format_klang(k):
                 return ("kwhile", e[1], e[2], manage_branches(e[3]), manage_branches(e[4]), e[5])
             case _:
                 return e
+
+    # def type_conversion(e):
+    #     # kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone"]
+    #     def extract_vars(kval, vars = []):
+    #         match kval[0]:
+    #             case "knum":
+    #                 return (vars, kval)
+    #             case "kvar":
+    #                 if kval[1] in alloca:
+    #                     tmp = Fresh("tmp")
+    #                     return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
+    #                 else:
+    #                     return (vars, kval)
+    #             case "kneg":
+    #                 return extract_vars(kval[1], vars)
+    #             case "kop":
+    #                 left = extract_vars(kval[2], vars)
+    #                 right = extract_vars(kval[3], vars)
+    #                 return  (left[0]+right[0], ("kop", kval[1], left[1], right[1])) 
+    #             case "kphi":
+    #                 br1 = extract_vars(kval[1][0], vars)
+    #                 br2 = extract_vars(kval[2][0], vars)
+    #                 return (br1[0]+br2[0], ("kphi", (br1[1], kval[1][1]), (br2[1], kval[2][1]), kval[3]))
+    #                 # return (vars, kval)
+    #             case _:
+    #                 return (vars, kval)
+    #     match e[0]:
+    #         case "klet":
+    #             (vars, newKval) = extract_vars(e[2])
+    #             rest = load_var(e[3])
+    #             e = ("klet", e[1], newKval, rest)
+    #             for i in vars:
+    #                 e = ("kload", i[1], i[0], e)
+    #             return e
+    #         case "kreturn":
+    #             (vars, newKval) = extract_vars(e[1])
+    #             e = ("kreturn", newKval)
+    #             for i in vars:
+    #                 e = ("kload", i[1], i[0], e)
+    #             return e
+    #         case "kass":
+    #             (vars, newKval) = extract_vars(e[2])
+    #             rest = load_var(e[3])
+    #             e = ("kass", e[1], newKval, rest)
+    #             for i in vars:
+    #                 e = ("kload", i[1], i[0], e)
+    #             return e
+    #         case "kif":
+    #             return ("kif", e[1], load_var(e[2]), load_var(e[3]), load_var(e[4]), e[5])
+    #         case "kload":
+    #             return(e[0], e[1], e[2], load_var(e[3]))
+    #         case "kwhile":
+    #             cond = load_var(e[2])
+    #             body = load_var(e[3])
+    #             rest = load_var(e[4])
+    #             return ("kwhile", e[1], cond, body, rest, e[5])
+    #         case "knone":
+    #             return e
     
     k = load_var(k)
     k = manage_branches(k)
@@ -360,6 +449,10 @@ def compile_fop(op):
         case "||":
             return "or i1"
 
+
+def compile_args(args):
+    return ",".join([f"{get_type(a)} {compile_val(a)}" for a in args])
+
 def compile_val(v):
     match v[0]:
         case "knum":
@@ -375,8 +468,10 @@ def compile_val(v):
             else:
                 return f"{compile_op(v[1])} {compile_val(v[2])}, {compile_val(v[3])}"
         case "kphi":
-                return f"phi {v[3]} [ {compile_val(v[1][0])}, %{v[1][1]} ], [ {compile_val(v[2][0])}, %{v[2][1]} ]"
-        # case "kcall":
+            return f"phi {v[3]} [ {compile_val(v[1][0])}, %{v[1][1]} ], [ {compile_val(v[2][0])}, %{v[2][1]} ]"
+        case "kcall":
+            ty = get_type(v)
+            return  f"call {ty} @{v[1]} ({compile_args(v[2])})"
         case _:
             return "unknown kval"
 
@@ -405,6 +500,8 @@ def compile_exp(e):
                 return i(f"%{e[1][1]} = {compile_val(eTmp)}") + compile_exp(e[3])
         case "kload":
             return i(f"%{e[1]} = load {e[2][2]}, {e[2][2]}* %{e[2][1]}, align 4") + compile_exp(e[3])
+        case "kcallv":
+            return i(f"call void @{e[1]} ({compile_args(e[2])})") + compile_exp(e[3])
         case "kif":
             ifBr = e[5][0]
             elseBr = e[5][1]
@@ -497,6 +594,20 @@ define void @printChar(i32 %x) {
 
 """
 
+pre2 = """
+
+define double @i32_to_double(i32 %x) {
+   %t0 = sitofp i32 %x to double
+   ret double %t0
+}
+
+define i32 @double_to_i32(double %x) {
+   %t0 = fptosi double %x to i32
+   ret double %t0
+}
+
+"""
+
 def compile_alloca():
     s = ""
     for a in alloca:
@@ -515,7 +626,7 @@ def compile_decl(d):
             print("after format_klang:")
             print(cpsb)
             # cpsb = CPSB(d[1], lambda x : ("kreturn", x))
-            s = m("define i32 @main() {") + compile_alloca() + compile_exp(cpsb) + m("}\n")
+            s = pre2 + m("define i32 @main() {") + compile_alloca() + compile_exp(cpsb) + m("}\n")
             return s
 
 # def compile_decl(d: Decl) : String = d match {

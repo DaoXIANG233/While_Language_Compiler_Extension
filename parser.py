@@ -36,6 +36,8 @@ def p_lst(p):
         p[0] = [p[1]]
 def p_lst_lstel(p):
     '''lstel : variable
+             | number
+             | bool
              | string'''
     p[0] = p[1]
 def p_lst_lstconnect(p):
