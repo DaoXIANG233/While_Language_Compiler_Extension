@@ -213,6 +213,31 @@ kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
 kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall"]
 
 def format_klang(k):
+    def format_kass(e):
+        match e[0]:
+            case "klet":
+                return ("klet", e[1], e[2], format_kass(e[3]))
+            case "kreturn":
+                return e
+            case "kass":
+                if e[1][1] in alloca:
+                    return ("kass", e[1], e[2], format_kass(e[3]))
+                else:
+                    e2 = ("kop", "+", e[2], ("knum", 0, "i32"))
+                    return ("klet", e[1][1], e2, format_kass(e[3]))
+            case "kif":
+                return ("kif", e[1], format_kass(e[2]), format_kass(e[3]), format_kass(e[4]), e[5])
+            case "kload":
+                return(e[0], e[1], e[2], format_kass(e[3]))
+            case "kcallv":
+                return ("kcallv", e[1], e[2], format_kass(e[3]))
+            case "kwhile":
+                cond = format_kass(e[2])
+                body = format_kass(e[3])
+                rest = format_kass(e[4])
+                return ("kwhile", e[1], cond, body, rest, e[5])
+            case "knone":
+                return e
     def load_var(e):
         def extract_vars(kval, vars = []):
             match kval[0]:
@@ -386,6 +411,7 @@ def format_klang(k):
             case "knone":
                 return e
     
+    k = format_kass(k)
     k = load_var(k)
     k = manage_branches(k)
     k = type_conversion(k)
@@ -501,11 +527,7 @@ def compile_exp(e):
         case "klet":
             return i(f"%{e[1]} = {compile_val(e[2])}") + compile_exp(e[3])
         case "kass":
-            if e[1][1] in alloca:
-                return i(f"store {get_type(e[2])} {compile_val(e[2])}, {e[1][2]}* %{e[1][1]}, align 4") + compile_exp(e[3])
-            else:
-                eTmp = ("kop", "+", e[2], ("knum", 0, "i32"))
-                return i(f"%{e[1][1]} = {compile_val(eTmp)}") + compile_exp(e[3])
+            return i(f"store {get_type(e[2])} {compile_val(e[2])}, {e[1][2]}* %{e[1][1]}, align 4") + compile_exp(e[3])
         case "kload":
             return i(f"%{e[1]} = load {e[2][2]}, {e[2][2]}* %{e[2][1]}, align 4") + compile_exp(e[3])
         case "kcallv":
