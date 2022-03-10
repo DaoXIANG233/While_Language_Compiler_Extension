@@ -743,15 +743,15 @@ def compile_decl(d):
 
 filedir = ""
 
-def format_ast(ast):
-    # print(filedir)
+def format_ast(ast, imported = []):
     main = []
-    imp = []
     newast = []
+    imp = []
 
     for i in ast:
         if i[0] == "import":
-            imp.append(i)
+            if i[1]  not in imported:
+                imp.append(i)
         else: 
             main.append(i)
 
@@ -765,17 +765,14 @@ def format_ast(ast):
             varname = i[1][0:whilePostfix]
         impFile = open(filename)
         impData = impFile.read()
-        # print("\nimported 'While' language file:")
-        # print(impData)
         impFile.close()
-        # print("\nAST generated:")
         p = parser.parse(impData)
-        # print(p)
-        # print(f"\n{filename} CPSB:")
-        # RefreshEnv()
-        # print(CPSB(p, lambda x : ("kreturn", x)))
-        # RefreshEnv()
-        newast.append(("dDef", varname, p))
+        asti = format_ast(p, imported + imp)
+        for j in asti:
+            if j[0] == "dMain":
+                newast.append(("dDef", varname, j[1]))
+            else:
+                newast.append(j)
     
     newast.append(("dMain", main))
     return newast
