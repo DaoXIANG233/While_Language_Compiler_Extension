@@ -63,6 +63,8 @@ def get_type(e):
             return e[2]
         case "kvar":
             return e[2]
+        case "kstr":
+            return e[2]
         case "kneg":
             return get_type(e[1])
         case "kop":
@@ -79,12 +81,18 @@ def get_type(e):
         case "kcall":
             return e[3]
         case _:
-            return "i32"
+            return "undef"
 
 varEnv = {}
+strEnv = []
 alloca = []
 funEnv = {  "i32_to_double" : "double",
             "double_to_i32" : "i32"}
+def RefreshEnv():
+    global varEnv, strEnv, alloca
+    varEnv = {}
+    strEnv = []
+    alloca = []
 
 def CPS(stmt, f):
     match stmt[0]:
@@ -96,7 +104,13 @@ def CPS(stmt, f):
         case "FNum":
             return f(("knum", stmt[1], "double"))
         case "Str":
-            return f(("kstr", stmt[1]))
+            sl = Fresh("str")
+            z = Fresh("tmp")
+            strEnv.append((sl, stmt[1], z))
+            # print("strEnv:")
+            # print(strEnv)
+            # return f(("kstr", sl, f"[{len(stmt[1]) + 1} x i8]"))
+            return f(("kstr", z, "i8*"))
         case "Neg":
             if stmt[1][0] in ["Num", "FNum"]:
                 return CPS(stmt[1], lambda y : f(('kneg', y)))
@@ -495,6 +509,8 @@ def compile_val(v):
             return f"%{v[1]}"
         case "kneg":
             return f"-{compile_val(v[1])}"
+        case "kstr":
+            return f"%{v[1]}"
         case "kop":
             ty = get_type(v)
             if ty == "double":
@@ -624,7 +640,21 @@ define void @printChar(i32 %x) {
 
 """
 
+# declare i32 @printf(i8*, ...)
+# @.str = private unnamed_addr constant [3 x i8] c"%f\\00", align 1
+
+# define i32 @write() #0 {
+# %a = alloca double, align 8
+# %1 = load double* %a, align 8
+# %2 = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([3 x i8]*  @.str, i32 0, i32 0), double %1)
+# ret i32 0
+# }
+
 pre2 = """
+
+declare i32 @printf(i8*, ...)
+@.stringln = private constant [4 x i8] c"%s\\0A\\00"
+@.string = private constant [3 x i8] c"%s\\00"
 
 define double @i32_to_double(i32 %x) {
    %t0 = sitofp i32 %x to double
@@ -636,12 +666,37 @@ define i32 @double_to_i32(double %x) {
    ret i32 %t0
 }
 
+define void @writeln(i8* %x) {
+    %t0 = getelementptr [4 x i8], [4 x i8]* @.stringln, i64 0, i64 0
+    call i32 (i8*, ...) @printf(i8* %t0, i8* %x)
+    ret void
+}
+
+define void @write(i8* %x) {
+    %t0 = getelementptr [3 x i8], [3 x i8]* @.string, i64 0, i64 0
+    call i32 (i8*, ...) @printf(i8* %t0, i8* %x)
+    ret void
+}
+
 """
 
 def compile_alloca():
     s = ""
     for a in alloca:
         s = s + i(f"%{a} = alloca {varEnv.get(a)}, align 4")
+    return s
+
+def compile_str():
+    s = ""
+    for str in strEnv:
+        s = s + f"@{str[0]} = private unnamed_addr constant [{len(str[1]) - 2 + 1} x i8] c\"{str[1][1:-1]}\\00\"" + "\n"
+    s = s + "\n"
+    return s
+
+def compile_str_ptr():
+    s = ""
+    for str in strEnv:
+        s = s + i(f"%{str[2]} = getelementptr [{len(str[1]) - 2 + 1} x i8], [{len(str[1]) -2 + 1} x i8]* @{str[0]}, i64 0, i64 0")
     return s
 
 def compile_decl(d):
@@ -651,12 +706,13 @@ def compile_decl(d):
         case "dDef":
             return d
         case "dMain":
+            RefreshEnv()
             cpsb = CPSB(d[1], lambda x : ("kreturn", ("knum", 0, "i32")))
             cpsb = format_klang(cpsb)
             print("after format_klang:")
             print(cpsb)
             # cpsb = CPSB(d[1], lambda x : ("kreturn", x))
-            s = pre2 + m("define i32 @main() {") + compile_alloca() + compile_exp(cpsb) + m("}\n")
+            s = compile_str() + m("define i32 @main() {") + compile_alloca() + compile_str_ptr() + compile_exp(cpsb) + m("}\n")
             return s
 
 # def compile_decl(d: Decl) : String = d match {
@@ -681,7 +737,7 @@ def compile_decl(d):
 
 def compile(ast):
     prog = [("dMain", ast)]
-    progll = '\n'.join(list(map(compile_decl, prog)))
+    progll = pre2 + '\n'.join(list(map(compile_decl, prog)))
     # return prelude + "\n" + progll
     return progll
 
