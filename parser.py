@@ -181,6 +181,9 @@ def p_statement_while(p):
 #         p[0] = ('read', p[2])
 #     else:
 #         p[0] = ('read', p[3])
+def p_statement_import(p):
+    '''stmt : IMPORT IDENTIFIER'''
+    p[0] = ('import', p[2])
 
 def p_statements(p):
     '''stmts : stmt SEMICOLON stmts'''

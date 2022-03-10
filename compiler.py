@@ -80,6 +80,8 @@ def get_type(e):
             return e[3]
         case "kcall":
             return e[3]
+        case "kvoid":
+            return "void"
         case _:
             return "undef"
 
@@ -134,7 +136,7 @@ def CPS(stmt, f):
                         z = Fresh("tmp")
                         return ("klet", z, ("kcall", stmt[1], vs, ty), f(("kvar", z, ty)))
                     else:
-                        return ("kcallv", stmt[1], vs, f(("knone", None)))
+                        return ("kcallv", stmt[1], vs, f(("kvoid", "")))
                 else:
                     return CPS(args[0], lambda y : aux(args[1:], vs + [y]))
             return aux(stmt[2], [])
@@ -154,7 +156,7 @@ def CPS(stmt, f):
                 return CPS(stmt[1], lambda y1 : CPS(stmt[2], lambda y2 : kassign(y1, y2)))
 
         case "while":
-            reg = ("knone", None)
+            reg = ("kvoid", "")
             def registerLast(x):
                 nonlocal reg
                 reg = x
@@ -169,8 +171,8 @@ def CPS(stmt, f):
             return CPS(cond[2], lambda y1 : CPS(cond[3], lambda y2 : ("kwhile", z, ( "klet", z, ("kop", cond[1], y1, y2), ("knone", None)), CPSB(bl, lambda x : registerLast(x)), f(reg), (entryWhile, condWhile, bodyWhile, endWhile))))
 
         case "if":
-            ifReg = ("knone", None)
-            elseReg = ("knone", None)
+            ifReg = ("kvoid", "")
+            elseReg = ("kvoid", "")
             def registerIf(x):
                 nonlocal ifReg
                 ifRet = Fresh("ifRet")
@@ -224,7 +226,7 @@ def CPSB(bl, f):
 #         return
 
 kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
-kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall"]
+kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall", "kvoid"]
 
 def format_klang(k):
     def format_kass(e):
@@ -522,18 +524,10 @@ def compile_val(v):
         case "kcall":
             ty = get_type(v)
             return  f"call {ty} @{v[1]} ({compile_args(v[2])})"
+        case "kvoid":
+            return ""
         case _:
             return "unknown kval"
-
-# def compile_val(v: KVal) : String = v match {
-#   case KCall(x1, args) => 
-#     val funType = globalFuns.getOrElse(x1, (List(), "void"))
-#     if (funType._2 == "void"){
-#       i"call void @$x1 (${funType._1.zip(args.map(compile_val)).map(t => t._1 ++ " " ++ t._2).mkString(", ")})"
-#     } else {
-#       s"call ${funType._2} @$x1 (${funType._1.zip(args.map(compile_val)).map(t => t._1 ++ " " ++ t._2).mkString(", ")})"
-#     }
-# }
 
 def compile_exp(e):
     match e[0]:
@@ -700,13 +694,25 @@ def compile_str_ptr():
     return s
 
 def compile_decl(d):
+    RefreshEnv()
     match d[0]:
         case "dAssign":
             return d
         case "dDef":
-            return d
+            funTy = "void"
+            def retTy(r):
+                print(f"r: {r}")
+                nonlocal funTy
+                funTy = get_type(r)
+                return ("kreturn", r)
+            cpsb = CPSB(d[2], lambda x : retTy(x))
+            cpsb = format_klang(cpsb)
+            # print("after format_klang:")
+            # print(cpsb)
+            # cpsb = CPSB(d[1], lambda x : ("kreturn", x))
+            s = compile_str() + m(f"define {funTy} @{d[1]}() " + "{") + compile_alloca() + compile_str_ptr() + compile_exp(cpsb) + m("}\n")
+            return s
         case "dMain":
-            RefreshEnv()
             cpsb = CPSB(d[1], lambda x : ("kreturn", ("knum", 0, "i32")))
             cpsb = format_klang(cpsb)
             print("after format_klang:")
@@ -735,14 +741,58 @@ def compile_decl(d):
 #   }
 # }
 
+filedir = ""
+
+def format_ast(ast):
+    # print(filedir)
+    main = []
+    imp = []
+    newast = []
+
+    for i in ast:
+        if i[0] == "import":
+            imp.append(i)
+        else: 
+            main.append(i)
+
+    for i in imp:
+        whilePostfix = i[1].find(".while")
+        if whilePostfix < 0:
+            filename = filedir + i[1] + ".while"
+            varname = i[1]
+        else:
+            filename = filedir + i[1]
+            varname = i[1][0:whilePostfix]
+        impFile = open(filename)
+        impData = impFile.read()
+        # print("\nimported 'While' language file:")
+        # print(impData)
+        impFile.close()
+        # print("\nAST generated:")
+        p = parser.parse(impData)
+        # print(p)
+        # print(f"\n{filename} CPSB:")
+        # RefreshEnv()
+        # print(CPSB(p, lambda x : ("kreturn", x)))
+        # RefreshEnv()
+        newast.append(("dDef", varname, p))
+    
+    newast.append(("dMain", main))
+    return newast
+
 def compile(ast):
-    prog = [("dMain", ast)]
+    prog = format_ast(ast)
     progll = pre2 + '\n'.join(list(map(compile_decl, prog)))
     # return prelude + "\n" + progll
     return progll
 
 if __name__ == '__main__':
     filename = sys.argv[1]
+
+    filedirIndex = filename.rfind('/')
+    if filedirIndex >= 0:
+        filedir = filename[0:filedirIndex] + "/"
+    
     file = open(filename)
     data = file.read()
     print("\n'While' language file:")
@@ -754,8 +804,7 @@ if __name__ == '__main__':
     print("\nCPSB:")
     # print(CPSB(p, lambda x : ("kreturn", x)))
     print(CPSB(p, lambda x : ("kreturn", ("knum", 0, "i32"))))
-    varEnv = {}
-    alloca = []
+    RefreshEnv()
     print("\nLLVM: ")
     ll = compile(p)
     print(ll)

@@ -6,6 +6,7 @@ import ply.lex as lex
 # t_KEYWORD = r'skip|while|do|if|then|else|read|write|for|to'
 keywords = { 'skip' : 'SKIP',
             'while' : 'WHILE',
+            'import' : 'IMPORT',
             'do' : 'DO',
             'if' : 'IF',
             'then' : 'THEN',
