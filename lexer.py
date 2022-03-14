@@ -7,6 +7,7 @@ import ply.lex as lex
 keywords = { 'skip' : 'SKIP',
             'while' : 'WHILE',
             'import' : 'IMPORT',
+            'global' : "GLOBAL",
             'do' : 'DO',
             'if' : 'IF',
             'then' : 'THEN',

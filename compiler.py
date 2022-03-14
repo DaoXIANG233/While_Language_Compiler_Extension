@@ -85,9 +85,11 @@ def get_type(e):
         case _:
             return "undef"
 
-varEnv = {}
-strEnv = []
-alloca = []
+varEnv = {}     #element form {var name: var type}
+strEnv = []     #element form (var name, string value, pointer var name)
+alloca = []     #element form (var name)
+
+gvarEnv = {}    #element form {var name: var type}
 funEnv = {  "i32_to_double" : "double",
             "double_to_i32" : "i32"}
 def RefreshEnv():
@@ -100,6 +102,7 @@ def CPS(stmt, f):
     match stmt[0]:
         case "Var":
             ty = varEnv.get(stmt[1], "undef")
+            ty = gvarEnv.get(stmt[1], ty)
             return f(("kvar", stmt[1], ty))
         case "Num":
             return f(("knum", stmt[1], "i32"))
@@ -132,7 +135,7 @@ def CPS(stmt, f):
             def aux(args, vs):
                 if (0 == len(args)):
                     ty = funEnv.get(stmt[1])
-                    if ty:
+                    if ty and ty != "void":
                         z = Fresh("tmp")
                         return ("klet", z, ("kcall", stmt[1], vs, ty), f(("kvar", z, ty)))
                     else:
@@ -260,7 +263,7 @@ def format_klang(k):
                 case "knum":
                     return (vars, kval)
                 case "kvar":
-                    if kval[1] in alloca:
+                    if kval[1] in alloca or kval[1] in list(gvarEnv.keys()):
                         # tmp = Fresh("tmp")
                         # return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
                         if kval not in [x[0] for x in vars]:
@@ -539,7 +542,11 @@ def compile_exp(e):
         case "kass":
             return i(f"store {get_type(e[2])} {compile_val(e[2])}, {e[1][2]}* %{e[1][1]}, align 4") + compile_exp(e[3])
         case "kload":
-            return i(f"%{e[1]} = load {e[2][2]}, {e[2][2]}* %{e[2][1]}, align 4") + compile_exp(e[3])
+            ty = get_type(e[2])
+            if gvarEnv.get(e[2][1]):
+                return i(f"%{e[1]} = load {ty}, {ty}* @{e[2][1]}") + compile_exp(e[3])
+            else:
+                return i(f"%{e[1]} = load {ty}, {ty}* %{e[2][1]}, align 4") + compile_exp(e[3])
         case "kcallv":
             return i(f"call void @{e[1]} ({compile_args(e[2])})") + compile_exp(e[3])
         case "kif":
@@ -696,8 +703,18 @@ def compile_str_ptr():
 def compile_decl(d):
     RefreshEnv()
     match d[0]:
-        case "dAssign":
-            return d
+        # FIXME: handle aexp like global k := 3 + 1;
+        case "dAssign": 
+            ty = "undef"
+            def retTy(r):
+                print(f"r: {r}")
+                nonlocal ty
+                ty = get_type(r)
+                return ("kreturn", r)
+            cps = CPS(("assign", d[1], d[2]), lambda x : retTy(x))
+            gvarEnv[d[1][1]] = ty
+            s = f"@{d[1][1]} = global {ty} {d[2][1]}"
+            return s
         case "dDef":
             funTy = "void"
             def retTy(r):
@@ -710,6 +727,7 @@ def compile_decl(d):
             # print("after format_klang:")
             # print(cpsb)
             # cpsb = CPSB(d[1], lambda x : ("kreturn", x))
+            funEnv[d[1]] = funTy
             s = compile_str() + m(f"define {funTy} @{d[1]}() " + "{") + compile_alloca() + compile_str_ptr() + compile_exp(cpsb) + m("}\n")
             return s
         case "dMain":
@@ -747,13 +765,19 @@ def format_ast(ast, imported = []):
     main = []
     newast = []
     imp = []
+    gvar = []
 
     for i in ast:
         if i[0] == "import":
             if i[1]  not in imported:
                 imp.append(i)
+        elif i[0] == "gassign":
+            gvar.append(i)
         else: 
             main.append(i)
+
+    for i in gvar:
+        newast.append(("dAssign", i[1], i[2]))
 
     for i in imp:
         whilePostfix = i[1].find(".while")
@@ -779,6 +803,8 @@ def format_ast(ast, imported = []):
 
 def compile(ast):
     prog = format_ast(ast)
+    print("formated AST:")
+    print(prog)
     progll = pre2 + '\n'.join(list(map(compile_decl, prog)))
     # return prelude + "\n" + progll
     return progll
