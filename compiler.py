@@ -82,6 +82,26 @@ def get_type(e):
             return e[3]
         case "kvoid":
             return "void"
+        case "karr":
+            # l = len(e[1])
+            # if l < 1:
+            #     return "[0 x i32]"
+            
+            # firstE = e[1][0]
+            # if firstE[0] == "karr":
+            #     largestE = (len(firstE[1]), get_type(firstE))
+            # else:
+            #     largestE = (1, get_type(firstE))
+
+            # for i in e[1:]:
+            #     # TODO: type check.
+            #     # if get_type(i) != largestE[1]:
+            #     #     raise Exception("array type error")
+
+            #     if i[0] == "karr" and len(i[1]) > largestE[0]:
+            #         largestE = (len(i[1]), get_type(i))
+            # return f"[{l} x {largestE[1]}]"
+            return e[2]
         case _:
             return "undef"
 
@@ -143,6 +163,33 @@ def CPS(stmt, f):
                 else:
                     return CPS(args[0], lambda y : aux(args[1:], vs + [y]))
             return aux(stmt[2], [])
+        case "array":
+            #TODO alloca stack for arrays
+            def aux2(args, vs):   # largest element of form (length, type)
+                if (0 == len(args)):
+                    l = len(vs)
+                    if l < 1:
+                        return "[0 x i32]"
+                    
+                    firstE = vs[0]
+                    if firstE[0] == "karr":
+                        largestE = (len(firstE[1]), get_type(firstE))
+                    else:
+                        largestE = (1, get_type(firstE))
+
+                    for i in vs[1:]:
+                        # TODO: type check.
+                        # if get_type(i) != largestE[1]:
+                        #     raise Exception("array type error")
+
+                        if i[0] == "karr" and len(i[1]) > largestE[0]:
+                            largestE = (len(i[1]), get_type(i))
+                    
+                    return f(("karr", vs, f"[{l} x {largestE[1]}]"))
+                else:
+                    return CPS(args[0], lambda y : aux2(args[1:], vs + [y]))
+
+            return aux2(stmt[1], [])
         case "assign":
             if stmt[1][0] != "Var":
                 raise Exception("assigning error")
@@ -229,7 +276,7 @@ def CPSB(bl, f):
 #         return
 
 kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
-kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall", "kvoid"]
+kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall", "karr", "kvoid"]
 
 def format_klang(k):
     def format_kass(e):
@@ -242,7 +289,9 @@ def format_klang(k):
                 if e[1][1] in alloca:
                     return ("kass", e[1], e[2], format_kass(e[3]))
                 else:
-                    e2 = ("kop", "+", e[2], ("knum", 0, "i32"))
+                    e2 = e[2]
+                    if e[2][0] in ["knum", "kvar", "kneg"]:
+                        e2 = ("kop", "+", e[2], ("knum", 0, "i32"))
                     return ("klet", e[1][1], e2, format_kass(e[3]))
             case "kif":
                 return ("kif", e[1], format_kass(e[2]), format_kass(e[3]), format_kass(e[4]), e[5])
@@ -293,6 +342,14 @@ def format_klang(k):
                         eVars = e[0]
                         newKvals += [e[1]]
                     return (eVars, ("kcall", kval[1], newKvals, kval[3]))
+                case "karr":
+                    eVars = []
+                    newKvals = []
+                    for i in kval[1]:
+                        e = extract_vars(i, eVars)
+                        eVars = e[0]
+                        newKvals += [e[1]]
+                    return (eVars, ("karr", newKvals, kval[2]))
                 case _:
                     return (vars, kval)
         match e[0]:
@@ -399,6 +456,7 @@ def format_klang(k):
                         retLst += [(rz, ("kcall", f"{rTy}_to_{ty}", [rV], ty))]
                         rV = ("kvar", rz, ty)
                     return  (retLst, ("kop", kval[1], lV, rV))
+                # TODO: case "karr":
                 case _:
                     return ([], kval)
         match e[0]:
@@ -527,6 +585,8 @@ def compile_val(v):
         case "kcall":
             ty = get_type(v)
             return  f"call {ty} @{v[1]} ({compile_args(v[2])})"
+        case "karr":
+            return "[" + ", ".join(list(map(lambda x : f"{get_type(x)} {compile_val(x)}", v[1]))) + "]"
         case "kvoid":
             return ""
         case _:
@@ -732,8 +792,10 @@ def compile_decl(d):
             return s
         case "dMain":
             cpsb = CPSB(d[1], lambda x : ("kreturn", ("knum", 0, "i32")))
+            print("cpsb before format_klang:")
+            print(cpsb)
             cpsb = format_klang(cpsb)
-            print("after format_klang:")
+            print("cpsb after format_klang:")
             print(cpsb)
             # cpsb = CPSB(d[1], lambda x : ("kreturn", x))
             s = compile_str() + m("define i32 @main() {") + compile_alloca() + compile_str_ptr() + compile_exp(cpsb) + m("}\n")

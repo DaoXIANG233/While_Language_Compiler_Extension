@@ -51,9 +51,11 @@ t_COMMA = r','
 # t_PARENTHESIS = r'{|}|\(|\)'
 t_LBRACE = r'{'
 t_RBRACE = r'}'
+t_LBRACKET = r'\['
+t_RBRACKET = r'\]'
 t_LPAREN = r'\('
 t_RPAREN = r'\)'
-parens = ['LBRACE', 'RBRACE', 'LPAREN', 'RPAREN']
+parens = ['LBRACE', 'RBRACE', 'LPAREN', 'RPAREN', 'LBRACKET', 'RBRACKET']
 def t_IDENTIFIER(t):
     r'[a-zA-Z][_a-zA-Z0-9]*'
     t.type = keywords.get(t.value,'IDENTIFIER')    # Check for reserved words

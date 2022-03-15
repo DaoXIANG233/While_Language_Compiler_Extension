@@ -37,11 +37,16 @@ def p_lst(p):
 def p_lst_lstel(p):
     '''lstel : aexp
              | bool
-             | string'''
+             | string
+             | array'''
     p[0] = p[1]
 def p_lst_lstconnect(p):
     '''lstconnect : COMMA'''
     p[0] = p[1]
+
+def p_array(p):
+    '''array : LBRACKET list RBRACKET'''
+    p[0] = ('array', p[2])
 
 def p_aexp(p):
     '''aexp : te PLUS aexp
@@ -142,16 +147,24 @@ def p_statement_exp(p):
     p[0] = p[1]
 def p_statement_skip(p):
     '''stmt : SKIP'''
+    p[0] = ('skip')
+
+def p_statement_assign_values(p):
+    '''value : aexp
+             | bexp
+             | array'''
     p[0] = p[1]
 def p_statement_assign(p):
-    '''stmt : variable ASSOPERATOR aexp'''
+    '''stmt : variable ASSOPERATOR value'''
     p[0] = ('assign', p[1], p[3])
+
 def p_call(p):
     '''call : IDENTIFIER LPAREN list RPAREN'''
     p[0] = ('call', p[1], p[3])
 def p_statement_call(p):
     '''stmt : call'''
     p[0] = p[1]
+
 # def p_statement_write_id(p):
 #     '''stmt : WRITE variable
 #             | WRITE LPAREN variable RPAREN'''
@@ -165,22 +178,25 @@ def p_statement_call(p):
 #             | WRITE LPAREN string RPAREN
 #             | WRITE LPAREN number RPAREN'''
 #     if len(p) == 3:
-#         p[0] = ('writeStr', p[2])
+#         p[0] = ('call', 'write', [p[2]])
 #     else:
-#         p[0] = ('writeStr', p[3])
+#         p[0] = ('call', 'write', [p[3]])
+
 def p_statement_if(p):
     '''stmt : IF bexp THEN block ELSE block'''
     p[0] = ('if', p[2], p[4], p[6])
 def p_statement_while(p):
     '''stmt : WHILE bexp DO block'''
     p[0] = ('while', p[2], p[4])
+
 # def p_statement_read(p):
-#     '''stmt : READ variable
-#             | READ LPAREN variable RPAREN'''
+#     '''stmt : READ list
+#             | READ LPAREN list RPAREN'''
 #     if len(p) == 3:
 #         p[0] = ('read', p[2])
 #     else:
 #         p[0] = ('read', p[3])
+        
 def p_statement_import(p):
     '''stmt : IMPORT IDENTIFIER'''
     p[0] = ('import', p[2])
