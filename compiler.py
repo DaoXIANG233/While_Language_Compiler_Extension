@@ -105,11 +105,12 @@ def get_type(e):
         case _:
             return "undef"
 
-varEnv = {}     #element form {var name: var type}
+varEnv = {}     #element form {var name : var type}
 strEnv = []     #element form (var name, string value, pointer var name)
 alloca = []     #element form (var name)
+# arrEnv = {}     #element form (arr name : arr type)
 
-gvarEnv = {}    #element form {var name: var type}
+gvarEnv = {}    #element form {var name : var type}
 funEnv = {  "i32_to_double" : "double",
             "double_to_i32" : "i32"}
 def RefreshEnv():
@@ -139,6 +140,8 @@ def CPS(stmt, f):
         case "Neg":
             if stmt[1][0] in ["Num", "FNum"]:
                 return CPS(stmt[1], lambda y : f(('kneg', y)))
+            elif stmt[1][0] == "Neg":
+                return CPS(stmt[1][1], lambda y : f(y))
             else:
                 return CPS(("aexp", "-", ("Num", 0), stmt[1]), f)
         case "aexp":
@@ -164,7 +167,6 @@ def CPS(stmt, f):
                     return CPS(args[0], lambda y : aux(args[1:], vs + [y]))
             return aux(stmt[2], [])
         case "array":
-            #TODO alloca stack for arrays
             def aux2(args, vs):   # largest element of form (length, type)
                 if (0 == len(args)):
                     l = len(vs)
@@ -201,6 +203,9 @@ def CPS(stmt, f):
                     return ("kass", v, b, f(v))
                 
                 if (varEnv.get(stmt[1][1]) != None) and (stmt[1][1] not in alloca):
+                    alloca.append(stmt[1][1])
+                
+                if (stmt[2][0] == 'array') and (stmt[1][1] not in alloca):
                     alloca.append(stmt[1][1])
 
                 return CPS(stmt[1], lambda y1 : CPS(stmt[2], lambda y2 : kassign(y1, y2)))
@@ -836,6 +841,9 @@ def format_ast(ast, imported = []):
         elif i[0] == "gassign":
             gvar.append(i)
         else: 
+            if i[0] in ["aexp", "bexp", "array", "Num", "FNum", "Var"]:
+                z = Fresh("tmp")
+                i = ('assign', ('Var', z), i)
             main.append(i)
 
     for i in gvar:
