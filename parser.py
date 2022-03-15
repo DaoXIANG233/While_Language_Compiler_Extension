@@ -141,10 +141,6 @@ def p_ab_paren(p):
 def p_statement_basic(p):
     '''stmt : stmt SEMICOLON'''
     p[0] = p[1]
-def p_statement_exp(p):
-    '''stmt : aexp
-            | bexp'''
-    p[0] = p[1]
 def p_statement_skip(p):
     '''stmt : SKIP'''
     p[0] = ('skip')
@@ -163,6 +159,9 @@ def p_call(p):
     p[0] = ('call', p[1], p[3])
 def p_statement_call(p):
     '''stmt : call'''
+    p[0] = p[1]
+def p_statement_value(p):
+    '''stmt : value'''
     p[0] = p[1]
 
 # def p_statement_write_id(p):
