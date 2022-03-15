@@ -42,7 +42,7 @@ def t_FNUMBER(t):
     t.value = float(t.value)
     return t
 def t_NUMBER(t):
-    r'[0-9]|[1-9][0-9]+'
+    r'[1-9][0-9]+|[0-9]'
     t.value = int(t.value)
     return t
 t_STRING = r'\"[a-zA-Z._><=;,\\: \n\t\r0-9]*\"'
