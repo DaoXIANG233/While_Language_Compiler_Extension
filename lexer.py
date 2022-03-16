@@ -13,7 +13,7 @@ keywords = { 'skip' : 'SKIP',
             'then' : 'THEN',
             'else' : 'ELSE',
             # 'read' : 'READ',
-            # 'write': 'WRITE',
+            'write': 'WRITE',
             'for' : 'FOR',
             'to' : 'TO'}
 t_BKEYWORD = r'true|false' # Boolean keywords

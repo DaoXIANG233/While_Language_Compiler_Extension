@@ -18,7 +18,7 @@ def p_fnum(p):
 
 def p_str(p):
     '''string : STRING'''
-    p[0] = ('Str', p[1])
+    p[0] = ('Str', p[1][1:-1])
 
 def p_bool(p):
     '''bool : BKEYWORD'''
@@ -164,22 +164,20 @@ def p_statement_value(p):
     '''stmt : value'''
     p[0] = p[1]
 
-# def p_statement_write_id(p):
-#     '''stmt : WRITE variable
-#             | WRITE LPAREN variable RPAREN'''
-#     if len(p) == 3:
-#         p[0] = ('writeId', p[2])
-#     else:
-#         p[0] = ('writeId', p[3])
-# def p_statement_write_str(p):
-#     '''stmt : WRITE string
-#             | WRITE number
-#             | WRITE LPAREN string RPAREN
-#             | WRITE LPAREN number RPAREN'''
-#     if len(p) == 3:
-#         p[0] = ('call', 'write', [p[2]])
-#     else:
-#         p[0] = ('call', 'write', [p[3]])
+def p_statement_write_id(p):
+    '''stmt : WRITE aexp
+            | WRITE LPAREN aexp RPAREN'''
+    if len(p) == 3:
+        p[0] = ('writeId', p[2])
+    else:
+        p[0] = ('writeId', p[3])
+def p_statement_write_str(p):
+    '''stmt : WRITE string
+            | WRITE LPAREN string RPAREN'''
+    if len(p) == 3:
+        p[0] = ('call', 'write_str', [p[2]])
+    else:
+        p[0] = ('call', 'write_str', [p[3]])
 
 def p_statement_if(p):
     '''stmt : IF bexp THEN block ELSE block'''
