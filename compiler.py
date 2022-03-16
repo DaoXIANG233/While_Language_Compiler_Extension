@@ -901,3 +901,7 @@ if __name__ == '__main__':
     print("\nLLVM: ")
     ll = compile(p)
     print(ll)
+
+    f = open(filename.replace(".while", ".ll"), "w")
+    f.write(ll)
+    f.close()
