@@ -45,7 +45,7 @@ def t_NUMBER(t):
     r'[1-9][0-9]+|[0-9]'
     t.value = int(t.value)
     return t
-t_STRING = r'\"[a-zA-Z._><=;,\\: \n\t\r0-9]*\"'
+t_STRING = r'"(.+?)"'
 t_SEMICOLON = r';'
 t_COMMA = r','
 # t_PARENTHESIS = r'{|}|\(|\)'
