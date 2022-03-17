@@ -80,6 +80,8 @@ def get_type(e):
             return e[3]
         case "kcall":
             return e[3]
+        case "kcast":
+            return e[3]
         case "kvoid":
             return "void"
         case "karr":
@@ -293,6 +295,54 @@ kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
 kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall", "karr", "kvoid", "kcast"]
 
 def format_klang(k):
+    def check_var_ty(e):
+        ptrlst = alloca + list(gvarEnv.keys())
+        def check_ptr(v):
+            match v[0]:
+                case "kvar":
+                    if v[1] in ptrlst:
+                        return ("kvar", v[1], v[2] + "*")
+                    return v
+                case "kneg":
+                    return check_ptr(v[1])
+                case "kop":
+                    left = check_ptr(v[2])
+                    right = check_ptr(v[3])
+                    return ("kop", v[1], left, right)
+                case "kphi":    #("kphi", (ifReg, ifLabel), (elseReg, elseLabel), get_type(ifReg))
+                    first = check_ptr(v[1][0])
+                    second = check_ptr(v[2][0])
+                    return ("kphi", (first, v[1][1]), (second, v[2][1]), get_type(first))
+                #TODO: case "karr":
+                case _:
+                    return v
+
+        match e[0]: #["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
+            case "klet":
+                return ("klet", e[1], e[2], check_var_ty(e[3]))
+            case "kreturn":
+                return ("kreturn", check_ptr(e[1]))
+            case "kass":
+                right = check_ptr(e[2])
+                if right != e[2]:
+                    ptrlst = ptrlst + [e[1][1]]
+                left = check_ptr(e[1])
+                return ("kass", left, right, check_var_ty(e[3]))
+            case "kif":
+                return ("kif", e[1], check_var_ty(e[2]), check_var_ty(e[3]), check_var_ty(e[4]), e[5])
+            case "kload":
+                return ("kload", e[1], e[2], check_var_ty(e[3]))
+            case "kcallv":
+                return ("kcallv", e[1], e[2], check_var_ty(e[3]))
+            case "kwhile":
+                cond = check_var_ty(e[2])
+                body = check_var_ty(e[3])
+                rest = check_var_ty(e[4])
+                return ("kwhile", e[1], cond, body, rest, e[5])
+            case "knone":
+                return e
+
+
     def format_kass(e):
         match e[0]:
             case "klet":
@@ -303,7 +353,6 @@ def format_klang(k):
                 if e[1][1] in alloca:
                     return ("kass", e[1], e[2], format_kass(e[3]))
                 else:
-                    print(f"e[2] = {e[2]}")
                     if e[2][0] == "kvar":
                         ty = get_type(e[2])
                         return ("klet", e[1][1], ("kcast", e[2], ty, ty), format_kass(e[3]))
@@ -338,7 +387,7 @@ def format_klang(k):
                             tmp = Fresh("tmp")
                             return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
                         else:
-                            tmp = [x[1] for x in vars if x[0] == kval][-1]
+                            tmp = [x[1] for x in vars if x[0] == kval][-1]  # for not loading n twice if in case k:=n+n etc.
                             return (vars, ("kvar", tmp, kval[2]))
                     else:
                         return (vars, kval)
@@ -507,6 +556,7 @@ def format_klang(k):
             case "knone":
                 return e
     
+    k = check_var_ty(k)
     k = format_kass(k)
     k = load_var(k)
     k = manage_branches(k)
@@ -588,6 +638,8 @@ def compile_val(v):
         case "knum":
             return f"{v[1]}"
         case "kvar":
+            if v[1] in list(gvarEnv.keys()):
+                return f"@{v[1]}"
             return f"%{v[1]}"
         case "kneg":
             return f"-{compile_val(v[1])}"
@@ -621,13 +673,14 @@ def compile_exp(e):
         case "klet":
             return i(f"%{e[1]} = {compile_val(e[2])}") + compile_exp(e[3])
         case "kass":
-            return i(f"store {get_type(e[2])} {compile_val(e[2])}, {e[1][2]}* %{e[1][1]}, align 4") + compile_exp(e[3])
+            return i(f"store {get_type(e[2])} {compile_val(e[2])}, {get_type(e[1])} {compile_val(e[1])}, align 4") + compile_exp(e[3])
         case "kload":
             ty = get_type(e[2])
-            if gvarEnv.get(e[2][1]):
-                return i(f"%{e[1]} = load {ty}, {ty}* @{e[2][1]}") + compile_exp(e[3])
-            else:
-                return i(f"%{e[1]} = load {ty}, {ty}* %{e[2][1]}, align 4") + compile_exp(e[3])
+            # if gvarEnv.get(e[2][1]):
+            #     return i(f"%{e[1]} = load {ty}, {ty}* @{e[2][1]}") + compile_exp(e[3])
+            # else:
+            #     return i(f"%{e[1]} = load {ty}, {ty}* %{e[2][1]}, align 4") + compile_exp(e[3])
+            return i(f"%{e[1]} = load {ty}, {ty}* {compile_val(e[2])}, align 4") + compile_exp(e[3])
         case "kcallv":
             return i(f"call void @{e[1]} ({compile_args(e[2])})") + compile_exp(e[3])
         case "kif":
