@@ -136,7 +136,9 @@ def CPS(stmt, f):
             # print("strEnv:")
             # print(strEnv)
             # return f(("kstr", sl, f"[{len(stmt[1]) + 1} x i8]"))
-            return f(("kstr", z, "i8*"))
+
+            # return f(("kstr", z, "i8*"))
+            return f(("kvar", z, "i8*"))
         case "Neg":
             if stmt[1][0] in ["Num", "FNum"]:
                 return CPS(stmt[1], lambda y : f(('kneg', y)))
@@ -167,7 +169,12 @@ def CPS(stmt, f):
                     return CPS(args[0], lambda y : aux(args[1:], vs + [y]))
             return aux(stmt[2], [])
         case "writeId":
-            return CPS(stmt[1], lambda y : ("kcallv", "write_" + get_type(y), [y], f(("kvoid", ""))))
+            def tyMap(y):
+                ty = get_type(y)
+                if ty == "i8*":
+                    return "str"
+                return ty
+            return CPS(stmt[1], lambda y : ("kcallv", "write_" + tyMap(y), [y], f(("kvoid", ""))))
         case "array":
             def aux2(args, vs):   # largest element of form (length, type)
                 if (0 == len(args)):
@@ -283,7 +290,7 @@ def CPSB(bl, f):
 #         return
 
 kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
-kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall", "karr", "kvoid"]
+kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall", "karr", "kvoid", "kcast"]
 
 def format_klang(k):
     def format_kass(e):
@@ -296,8 +303,13 @@ def format_klang(k):
                 if e[1][1] in alloca:
                     return ("kass", e[1], e[2], format_kass(e[3]))
                 else:
+                    print(f"e[2] = {e[2]}")
+                    if e[2][0] == "kvar":
+                        ty = get_type(e[2])
+                        return ("klet", e[1][1], ("kcast", e[2], ty, ty), format_kass(e[3]))
+
                     e2 = e[2]
-                    if e[2][0] in ["knum", "kvar", "kneg"]:
+                    if e[2][0] in ["knum", "kneg"]:
                         e2 = ("kop", "+", e[2], ("knum", 0, "i32"))
                     return ("klet", e[1][1], e2, format_kass(e[3]))
             case "kif":
@@ -596,6 +608,8 @@ def compile_val(v):
             return "[" + ", ".join(list(map(lambda x : f"{get_type(x)} {compile_val(x)}", v[1]))) + "]"
         case "kvoid":
             return ""
+        case "kcast":
+            return f"bitcast {v[2]} {compile_val(v[1])} to {v[3]}"
         case _:
             return "unknown kval"
 

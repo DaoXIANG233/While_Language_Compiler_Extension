@@ -148,6 +148,7 @@ def p_statement_skip(p):
 def p_statement_assign_values(p):
     '''value : aexp
              | bexp
+             | string
              | array'''
     p[0] = p[1]
 def p_statement_assign(p):
