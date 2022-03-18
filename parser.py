@@ -143,7 +143,7 @@ def p_statement_basic(p):
     p[0] = p[1]
 def p_statement_skip(p):
     '''stmt : SKIP'''
-    p[0] = ('skip')
+    p[0] = ('skip', None)
 
 def p_statement_assign_values(p):
     '''value : aexp

@@ -110,7 +110,7 @@ def get_type(e):
 varEnv = {}     #element form {var name : var type}
 strEnv = []     #element form (var name, string value, pointer var name)
 alloca = []     #element form (var name)
-# arrEnv = {}     #element form (arr name : arr type)
+ptrlst = []     #element form (var name)
 
 gvarEnv = {}    #element form {var name : var type}
 funEnv = {  "i32_to_double" : "double",
@@ -259,6 +259,8 @@ def CPS(stmt, f):
             elseLabel = Fresh("else_branch")
             endLabel = Fresh("if_end")
             return CPS(bExp[2], lambda y1 : CPS(bExp[3], lambda y2 : ("klet", z, ("kop", bExp[1], y1, y2), ("kif", z, CPSB(blIf, lambda x1 : registerIf(x1)), CPSB(blEl, lambda x2 : registerElse(x2)), ("klet", phi, ("kphi", (ifReg, ifLabel), (elseReg, elseLabel), get_type(ifReg)), f(("kvar", phi, get_type(ifReg)))), (ifLabel, elseLabel, endLabel)))))
+        case "skip":
+            return ("kcallv", "skip", [], f(("kvoid", "")))
         case _:
             return ("unknown")
 
@@ -295,11 +297,14 @@ kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
 kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall", "karr", "kvoid", "kcast"]
 
 def format_klang(k):
+    global ptrlst
+    ptrlst = alloca + list(gvarEnv.keys())
     def check_var_ty(e):
-        ptrlst = alloca + list(gvarEnv.keys())
+        global ptrlst
         def check_ptr(v):
             match v[0]:
                 case "kvar":
+                    print(f"ptrlst: {ptrlst}")
                     if v[1] in ptrlst:
                         return ("kvar", v[1], v[2] + "*")
                     return v
@@ -319,7 +324,7 @@ def format_klang(k):
 
         match e[0]: #["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
             case "klet":
-                return ("klet", e[1], e[2], check_var_ty(e[3]))
+                return ("klet", e[1], check_ptr(e[2]), check_var_ty(e[3]))
             case "kreturn":
                 return ("kreturn", check_ptr(e[1]))
             case "kass":
@@ -331,9 +336,9 @@ def format_klang(k):
             case "kif":
                 return ("kif", e[1], check_var_ty(e[2]), check_var_ty(e[3]), check_var_ty(e[4]), e[5])
             case "kload":
-                return ("kload", e[1], e[2], check_var_ty(e[3]))
+                return ("kload", e[1], check_ptr(e[2]), check_var_ty(e[3]))
             case "kcallv":
-                return ("kcallv", e[1], e[2], check_var_ty(e[3]))
+                return ("kcallv", e[1], list(map(check_ptr,e[2])), check_var_ty(e[3]))
             case "kwhile":
                 cond = check_var_ty(e[2])
                 body = check_var_ty(e[3])
@@ -343,7 +348,7 @@ def format_klang(k):
                 return e
 
 
-    def format_kass(e):
+    def format_kass(e):#["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
         match e[0]:
             case "klet":
                 return ("klet", e[1], e[2], format_kass(e[3]))
@@ -380,12 +385,12 @@ def format_klang(k):
                 case "knum":
                     return (vars, kval)
                 case "kvar":
-                    if kval[1] in alloca or kval[1] in list(gvarEnv.keys()):
+                    if kval[1] in ptrlst:
                         # tmp = Fresh("tmp")
                         # return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
                         if kval not in [x[0] for x in vars]:
                             tmp = Fresh("tmp")
-                            return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
+                            return (vars + [(kval, tmp)], ("kvar", tmp, kval[2][0:-1]))
                         else:
                             tmp = [x[1] for x in vars if x[0] == kval][-1]  # for not loading n twice if in case k:=n+n etc.
                             return (vars, ("kvar", tmp, kval[2]))
@@ -680,7 +685,7 @@ def compile_exp(e):
             #     return i(f"%{e[1]} = load {ty}, {ty}* @{e[2][1]}") + compile_exp(e[3])
             # else:
             #     return i(f"%{e[1]} = load {ty}, {ty}* %{e[2][1]}, align 4") + compile_exp(e[3])
-            return i(f"%{e[1]} = load {ty}, {ty}* {compile_val(e[2])}, align 4") + compile_exp(e[3])
+            return i(f"%{e[1]} = load {ty[0:-1]}, {ty} {compile_val(e[2])}, align 4") + compile_exp(e[3])
         case "kcallv":
             return i(f"call void @{e[1]} ({compile_args(e[2])})") + compile_exp(e[3])
         case "kif":
@@ -801,6 +806,10 @@ define double @i32_to_double(i32 %x) {
 define i32 @double_to_i32(double %x) {
    %t0 = fptosi double %x to i32
    ret i32 %t0
+}
+
+define void @skip() {
+    ret void
 }
 
 define void @write_ln() {
