@@ -4,6 +4,10 @@ import sys
 
 tokens = lexer.tokens
 
+#TODO: change while lang escape code like '\"', '\\' to ascii code first when loaded, then change back with this esc method.
+def esc(str):
+    return str[1:-1].replace("\\n", "\n").replace("\\t", "\t")
+
 def p_id(p):
     '''variable : IDENTIFIER'''
     p[0] = ('Var', p[1])
@@ -18,7 +22,7 @@ def p_fnum(p):
 
 def p_str(p):
     '''string : STRING'''
-    p[0] = ('Str', p[1][1:-1])
+    p[0] = ('Str', esc(p[1]))
 
 def p_bool(p):
     '''bool : BKEYWORD'''
