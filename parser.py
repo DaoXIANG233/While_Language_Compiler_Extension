@@ -191,13 +191,13 @@ def p_statement_while(p):
     '''stmt : WHILE bexp DO block'''
     p[0] = ('while', p[2], p[4])
 
-# def p_statement_read(p):
-#     '''stmt : READ list
-#             | READ LPAREN list RPAREN'''
-#     if len(p) == 3:
-#         p[0] = ('read', p[2])
-#     else:
-#         p[0] = ('read', p[3])
+def p_statement_read(p):
+    '''stmt : READ list
+            | READ LPAREN list RPAREN'''
+    if len(p) == 3:
+        p[0] = ('read', p[2])
+    else:
+        p[0] = ('read', p[3])
         
 def p_statement_import(p):
     '''stmt : IMPORT IDENTIFIER'''

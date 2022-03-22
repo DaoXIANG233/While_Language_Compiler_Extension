@@ -112,11 +112,12 @@ def get_type(e):
 varEnv = {}     #element form {var name : var type}
 strEnv = []     #element form (var name, string value, pointer var name)
 alloca = []     #element form (var name)
-ptrlst = []     #element form (var name)
+ptrlst = []     #element form (var name)    #ptrlst = alloca + list(gvarEnv.keys())
 
 gvarEnv = {}    #element form {var name : var type}
 funEnv = {  "i32_to_double" : "double",
-            "double_to_i32" : "i32"}
+            "double_to_i32" : "i32",
+            "read" : "i8*"}
 def RefreshEnv():
     global varEnv, strEnv, alloca
     varEnv = {}
@@ -179,6 +180,18 @@ def CPS(stmt, f):
                     return "str"
                 return ty
             return CPS(stmt[1], lambda y : ("kcallv", "write_" + tyMap(y), [y], f(("kvoid", ""))))
+        case "read":
+            def recRead(vars, ye = (("kvoid", ""))):
+                if (0 == len(vars)):
+                    return f(ye)
+                else:
+                    v = vars[0]
+                    if "Var" != v[0]:
+                        raise Exception("Read Error: must store read input into a variable.")
+                    # return CPS(v, lambda y : ("kass", (y[0], y[1], "i8*"), ("kcall", "read", [], "i8*"), recRead(vars[1:], y)))
+                    return CPS(("assign", v, ("call", "read", [])), lambda y : recRead(vars[1:], y))
+            return recRead(stmt[1])
+
         case "array":
             def aux2(args, vs):   # largest element of form (length, type)
                 if (0 == len(args)):
@@ -815,6 +828,9 @@ define void @printChar(i32 %x) {
 pre2 = """
 
 declare i32 @printf(i8*, ...)
+declare i8* @readline(i8*)
+
+@.read = private unnamed_addr constant [8 x i8] c"input> \\00", align 1
 @.ln = private constant [2 x i8] c"\\0A\\00"
 @.string = private constant [3 x i8] c"%s\\00"
 @.double = private constant [3 x i8] c"%f\\00"
@@ -832,6 +848,11 @@ define i32 @double_to_i32(double %x) {
 
 define void @skip() {
     ret void
+}
+
+define i8* @read() {
+    %t0 = call i8* @readline(i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.read, i64 0, i64 0))
+    ret i8* %t0
 }
 
 define void @write_ln() {

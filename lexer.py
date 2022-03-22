@@ -12,7 +12,7 @@ keywords = { 'skip' : 'SKIP',
             'if' : 'IF',
             'then' : 'THEN',
             'else' : 'ELSE',
-            # 'read' : 'READ',
+            'read' : 'READ',
             'write': 'WRITE',
             'for' : 'FOR',
             'to' : 'TO'}
