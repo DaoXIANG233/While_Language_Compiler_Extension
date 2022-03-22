@@ -173,13 +173,15 @@ def CPS(stmt, f):
                 else:
                     return CPS(args[0], lambda y : aux(args[1:], vs + [y]))
             return aux(stmt[2], [])
-        case "writeId":
+        case "write":
             def tyMap(y):
                 ty = get_type(y)
                 if ty == "i8*":
                     return "str"
                 return ty
             return CPS(stmt[1], lambda y : ("kcallv", "write_" + tyMap(y), [y], f(("kvoid", ""))))
+        case "writeln":
+            return CPSB([("write", stmt[1]), ("call", "new_line", [])], f)
         case "read":
             def recRead(vars, ye = (("kvoid", ""))):
                 if (0 == len(vars)):
@@ -855,7 +857,7 @@ define i8* @read() {
     ret i8* %t0
 }
 
-define void @write_ln() {
+define void @new_line() {
     %t0 = getelementptr [2 x i8], [2 x i8]* @.ln, i64 0, i64 0
     call i32 (i8*, ...) @printf(i8* %t0)
     ret void

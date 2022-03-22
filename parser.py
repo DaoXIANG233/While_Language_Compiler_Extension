@@ -169,20 +169,25 @@ def p_statement_value(p):
     '''stmt : value'''
     p[0] = p[1]
 
-def p_statement_write_id(p):
+def p_statement_write(p):
     '''stmt : WRITE aexp
-            | WRITE LPAREN aexp RPAREN'''
-    if len(p) == 3:
-        p[0] = ('writeId', p[2])
-    else:
-        p[0] = ('writeId', p[3])
-def p_statement_write_str(p):
-    '''stmt : WRITE string
+            | WRITE string
+            | WRITE LPAREN aexp RPAREN
             | WRITE LPAREN string RPAREN'''
     if len(p) == 3:
-        p[0] = ('call', 'write_str', [p[2]])
+        p[0] = ('write', p[2])
     else:
-        p[0] = ('call', 'write_str', [p[3]])
+        p[0] = ('write', p[3])
+
+def p_statement_writeln(p):
+    '''stmt : WRITELN aexp
+            | WRITELN string
+            | WRITELN LPAREN aexp RPAREN
+            | WRITELN LPAREN string RPAREN'''
+    if len(p) == 3:
+        p[0] = ('writeln', p[2])
+    else:
+        p[0] = ('writeln', p[3])
 
 def p_statement_if(p):
     '''stmt : IF bexp THEN block ELSE block'''
