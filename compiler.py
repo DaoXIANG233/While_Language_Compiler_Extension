@@ -84,6 +84,8 @@ def get_type(e):
             return e[3]
         case "kvoid":
             return "void"
+        case "kundef":
+            return e[2]
         case "karr":
             # l = len(e[1])
             # if l < 1:
@@ -239,16 +241,29 @@ def CPS(stmt, f):
         case "if":
             ifReg = ("kvoid", "")
             elseReg = ("kvoid", "")
+            regTy = "i32"
+            #FIXME: when if branch returns void and else branch returns non i32 value, there is a problem with phi node's type.
+            #FIXME: When returning i32 values. if one var is of pointer type i32*, ret will not call load but bitcast.
             def registerIf(x):
-                nonlocal ifReg
+                nonlocal ifReg, regTy
                 ifRet = Fresh("ifRet")
-                ifReg = ("kvar", ifRet, get_type(x))
-                return ("kass", ifReg, x, ("knone", None))
+                if x == ("kvoid", ""):
+                    ifReg = ("kundef", "undef", regTy)
+                    return ("knone", None)
+                else:
+                    regTy = get_type(x)
+                    ifReg = ("kvar", ifRet, regTy)
+                    return ("kass", ifReg, x, ("knone", None))
             def registerElse(x):
-                nonlocal elseReg
+                nonlocal elseReg, regTy
                 elseRet = Fresh("elseRet")
-                elseReg = ("kvar", elseRet, get_type(x))
-                return ("kass", elseReg, x, ("knone", None))
+                if x == ("kvoid", ""):
+                    elseReg = ("kundef", "undef", regTy)
+                    return ("knone", None)
+                else:
+                    regTy = get_type(x)
+                    elseReg = ("kvar", elseRet, regTy)
+                    return ("kass", elseReg, x, ("knone", None))
 
             bExp = format_bexp(stmt[1])
             blIf = stmt[2]
@@ -258,7 +273,7 @@ def CPS(stmt, f):
             ifLabel = Fresh("if_branch")
             elseLabel = Fresh("else_branch")
             endLabel = Fresh("if_end")
-            return CPS(bExp[2], lambda y1 : CPS(bExp[3], lambda y2 : ("klet", z, ("kop", bExp[1], y1, y2), ("kif", z, CPSB(blIf, lambda x1 : registerIf(x1)), CPSB(blEl, lambda x2 : registerElse(x2)), ("klet", phi, ("kphi", (ifReg, ifLabel), (elseReg, elseLabel), get_type(ifReg)), f(("kvar", phi, get_type(ifReg)))), (ifLabel, elseLabel, endLabel)))))
+            return CPS(bExp[2], lambda y1 : CPS(bExp[3], lambda y2 : ("klet", z, ("kop", bExp[1], y1, y2), ("kif", z, CPSB(blIf, lambda x1 : registerIf(x1)), CPSB(blEl, lambda x2 : registerElse(x2)), ("klet", phi, ("kphi", (ifReg, ifLabel), (elseReg, elseLabel), regTy), f(("kvar", phi, regTy))), (ifLabel, elseLabel, endLabel)))))
         case "skip":
             return ("kcallv", "skip", [], f(("kvoid", "")))
         case _:
@@ -294,7 +309,7 @@ def CPSB(bl, f):
 #         return
 
 kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
-kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall", "karr", "kvoid", "kcast"]
+kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall", "karr", "kvoid", "kcast", "kundef"]
 
 def format_klang(k):
     global ptrlst
@@ -317,7 +332,12 @@ def format_klang(k):
                 case "kphi":    #("kphi", (ifReg, ifLabel), (elseReg, elseLabel), get_type(ifReg))
                     first = check_ptr(v[1][0])
                     second = check_ptr(v[2][0])
-                    return ("kphi", (first, v[1][1]), (second, v[2][1]), get_type(first))
+                    ty = get_type(v[1][0])
+                    newTy = get_type(first)
+                    if newTy != ty:
+                        return ("kphi", (first, v[1][1]), (second, v[2][1]), newTy)
+                    else:
+                        return ("kphi", (first, v[1][1]), (second, v[2][1]), v[3])
                 #TODO: case "karr":
                 case _:
                     return v
@@ -358,7 +378,7 @@ def format_klang(k):
                 if e[1][1] in alloca:
                     return ("kass", e[1], e[2], format_kass(e[3]))
                 else:
-                    if e[2][0] == "kvar":
+                    if e[2][0] in ["kvar", "kundef"]:
                         ty = get_type(e[2])
                         return ("klet", e[1][1], ("kcast", e[2], ty, ty), format_kass(e[3]))
 
@@ -403,10 +423,10 @@ def format_klang(k):
                     right = extract_vars(kval[3], left[0])
                     return (right[0], ("kop", kval[1], left[1], right[1])) 
                 case "kphi":
-                    br1 = extract_vars(kval[1][0], vars)
-                    br2 = extract_vars(kval[2][0], br1[0])
-                    return (br2[0], ("kphi", (br1[1], kval[1][1]), (br2[1], kval[2][1]), kval[3]))
-                    # return (vars, kval)
+                    # br1 = extract_vars(kval[1][0], vars)
+                    # br2 = extract_vars(kval[2][0], br1[0])
+                    # return (br2[0], ("kphi", (br1[1], kval[1][1]), (br2[1], kval[2][1]), kval[3]))
+                    return (vars, kval)
                 case "kcall":
                     eVars = []
                     newKvals = []
@@ -561,10 +581,10 @@ def format_klang(k):
             case "knone":
                 return e
     
+    k = manage_branches(k)
     k = check_var_ty(k)
     k = format_kass(k)
     k = load_var(k)
-    k = manage_branches(k)
     k = type_conversion(k)
     return k
 
@@ -665,6 +685,8 @@ def compile_val(v):
             return "[" + ", ".join(list(map(lambda x : f"{get_type(x)} {compile_val(x)}", v[1]))) + "]"
         case "kvoid":
             return ""
+        case "kundef":
+            return "undef"
         case "kcast":
             return f"bitcast {v[2]} {compile_val(v[1])} to {v[3]}"
         case _:
