@@ -70,6 +70,8 @@ def get_type(e):
         case "kop":
             ty1 = get_type(e[2])
             ty2 = get_type(e[3])
+            if e[1] in ["<", ">", "<=", ">=", "&&", "||", "==", "!="]:
+                return "i1"
             if ty1 == "double" or ty2 == "double":
                 return "double"
             else:
@@ -117,6 +119,8 @@ ptrlst = []     #element form (var name)    #ptrlst = alloca + list(gvarEnv.keys
 gvarEnv = {}    #element form {var name : var type}
 funEnv = {  "i32_to_double" : "double",
             "double_to_i32" : "i32",
+            "i32_to_i1" : "i1",
+            "double_to_i1" : "i1",
             "read" : "i8*"}
 def RefreshEnv():
     global varEnv, strEnv, alloca
@@ -250,8 +254,9 @@ def CPS(stmt, f):
             condWhile = Fresh("while_cond")
             bodyWhile = Fresh("while_body")
             endWhile = Fresh("while_end")
-            z = Fresh("tmp")
-            return CPS(cond[2], lambda y1 : CPS(cond[3], lambda y2 : ("kwhile", z, ( "klet", z, ("kop", cond[1], y1, y2), ("knone", None)), CPSB(bl, lambda x : registerLast(x)), f(reg), (entryWhile, condWhile, bodyWhile, endWhile))))
+            z = Fresh("cond")
+            # return CPS(cond[2], lambda y1 : CPS(cond[3], lambda y2 : ("kwhile", z, ( "klet", z, ("kop", cond[1], y1, y2), ("knone", None)), CPSB(bl, lambda x : registerLast(x)), f(reg), (entryWhile, condWhile, bodyWhile, endWhile))))
+            return ("kwhile", z, CPS(cond, lambda y : ("kass", ("kvar", z, "i1"), y, ("knone", None))), CPSB(bl, lambda x : registerLast(x)), f(reg), (entryWhile, condWhile, bodyWhile, endWhile))
 
         case "if":
             ifReg = ("kvoid", "")
@@ -555,14 +560,28 @@ def format_klang(k):
                     rV = kval[3]
                     lTy = get_type(lV)
                     rTy = get_type(rV)
-                    if lTy != ty:
-                        lz = Fresh("tmp")
-                        retLst += [(lz, ("kcall", f"{lTy}_to_{ty}", [lV], ty))]
-                        lV = ("kvar", lz, ty)
-                    if rTy != ty:
-                        rz = Fresh("tmp")
-                        retLst += [(rz, ("kcall", f"{rTy}_to_{ty}", [rV], ty))]
-                        rV = ("kvar", rz, ty)
+                    if ty == "i1" and kval[1] in ["&&", "||"]:
+                        if lTy != "i1":
+                            lz = Fresh("tmp")
+                            retLst += [(lz, ("kcall", f"{lTy}_to_i1", [lV], "i1"))]
+                            lV = ("kvar", lz, "i1")
+                        if rTy != "i1":
+                            rz = Fresh("tmp")
+                            retLst += [(rz, ("kcall", f"{rTy}_to_i1", [rV], "i1"))]
+                            lV = ("kvar", rz, "i1")    
+                    else:
+                        if lTy == "double" or rTy == "double":
+                            ty = "double"
+                        else:
+                            ty = "i32"
+                        if lTy != ty:
+                            lz = Fresh("tmp")
+                            retLst += [(lz, ("kcall", f"{lTy}_to_{ty}", [lV], ty))]
+                            lV = ("kvar", lz, ty)
+                        if rTy != ty:
+                            rz = Fresh("tmp")
+                            retLst += [(rz, ("kcall", f"{rTy}_to_{ty}", [rV], ty))]
+                            rV = ("kvar", rz, ty)
                     return  (retLst, ("kop", kval[1], lV, rV))
                 # TODO: case "karr":
                 case _:
@@ -686,8 +705,9 @@ def compile_val(v):
         case "kstr":
             return f"%{v[1]}"
         case "kop":
-            ty = get_type(v)
-            if ty == "double":
+            tyL = get_type(v[2])
+            tyR = get_type(v[3])
+            if tyL == "double" or tyR == "double":
                 return f"{compile_fop(v[1])} {compile_val(v[2])}, {compile_val(v[3])}"
             else:
                 return f"{compile_op(v[1])} {compile_val(v[2])}, {compile_val(v[3])}"
@@ -846,6 +866,16 @@ define double @i32_to_double(i32 %x) {
 define i32 @double_to_i32(double %x) {
    %t0 = fptosi double %x to i32
    ret i32 %t0
+}
+
+define i1 @i32_to_i1(i32 %x) {
+   %t0 = icmp sge i32  %x, 0
+   ret i1 %t0
+}
+
+define i1 @double_to_i1(double %x) {
+   %t0 = fcmp oge double  %x, 0.0
+   ret i1 %t0
 }
 
 define void @skip() {
