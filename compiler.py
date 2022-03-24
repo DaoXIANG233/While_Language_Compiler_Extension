@@ -121,7 +121,7 @@ funEnv = {  "i32_to_double" : "double",
             "double_to_i32" : "i32",
             "i32_to_i1" : "i1",
             "double_to_i1" : "i1",
-            "read" : "i8*"}
+            "read" : "i32"}
 def RefreshEnv():
     global varEnv, strEnv, alloca
     varEnv = {}
@@ -846,13 +846,21 @@ define void @printChar(i32 %x) {
 # %2 = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([3 x i8]*  @.str, i32 0, i32 0), double %1)
 # ret i32 0
 # }
+# declare i8* @readline(i8*)
+
+# @.read = private unnamed_addr constant [8 x i8] c"input> \\00", align 1
+# define i8* @read() {
+#     %t0 = call i8* @readline(i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.read, i64 0, i64 0))
+#     ret i8* %t0
+# }
 
 pre2 = """
 
+declare i32 @scanf(i8*, ...)
 declare i32 @printf(i8*, ...)
-declare i8* @readline(i8*)
+declare i32 @atoi(i8*)
 
-@.read = private unnamed_addr constant [8 x i8] c"input> \\00", align 1
+@.read = private unnamed_addr constant [3 x i8] c"%s\\00", align 1
 @.ln = private constant [2 x i8] c"\\0A\\00"
 @.string = private constant [3 x i8] c"%s\\00"
 @.double = private constant [3 x i8] c"%f\\00"
@@ -882,9 +890,13 @@ define void @skip() {
     ret void
 }
 
-define i8* @read() {
-    %t0 = call i8* @readline(i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.read, i64 0, i64 0))
-    ret i8* %t0
+define i32 @read() {
+    %t0 = alloca [20 x i8], align 1
+    %t1 = getelementptr inbounds [20 x i8], [20 x i8]* %t0, i64 0, i64 0
+    %t2 = call i32 (i8*, ...) @scanf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.read, i64 0, i64 0), i8* %t1)
+    %t3 = getelementptr inbounds [20 x i8], [20 x i8]* %t0, i64 0, i64 0
+    %t4 = call i32 @atoi(i8* %t3)
+    ret i32 %t4
 }
 
 define void @new_line() {
