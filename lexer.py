@@ -15,8 +15,9 @@ keywords = { 'skip' : 'SKIP',
             'read' : 'READ',
             'write': 'WRITE',
             'writeln': 'WRITELN',
-            'for' : 'FOR',
-            'to' : 'TO'}
+            # 'for' : 'FOR',
+            # 'to' : 'TO'
+            }
 t_BKEYWORD = r'true|false' # Boolean keywords
 # t_OPERATOR = r'\+|-|\*|%|/|==|!=|>|<|<=|>=|:=|&&|\|\|'
 # t_AOPERATOR = r'\+|-|\*|%|/' # Arithmetic operators
@@ -64,7 +65,7 @@ def t_IDENTIFIER(t):
         t.type = 'BKEYWORD'
     return t
 def t_COMMENT(t):
-    r'//[a-zA-Z._><=;,\\: \n\t\r0-9]*\n'
+    r'//(.*?)\n'
     pass
 
 tokens = ['BKEYWORD', 'IDENTIFIER', 'FNUMBER', 'NUMBER', 'SEMICOLON', 'COMMA', 'STRING',  'WHITESPACE', 'COMMENT'] + list(keywords.values()) + parens + operators
