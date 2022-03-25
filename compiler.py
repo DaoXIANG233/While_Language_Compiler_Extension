@@ -697,6 +697,7 @@ def compile_val(v):
         case "knum":
             return f"{v[1]}"
         case "kvar":
+            #FIXME: when a gvar has the same name as a local var, it only refer to the gvar.
             if v[1] in list(gvarEnv.keys()):
                 return f"@{v[1]}"
             return f"%{v[1]}"
@@ -1024,6 +1025,9 @@ def format_ast(ast, imported = []):
                 z = Fresh("tmp")
                 i = ('assign', ('Var', z), i)
             main.append(i)
+
+    if len(main) == 0:
+        main = main + [('skip', None)]
 
     for i in gvar:
         newast.append(("dAssign", i[1], i[2]))
