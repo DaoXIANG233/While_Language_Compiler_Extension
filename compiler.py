@@ -1037,53 +1037,71 @@ def compile_lambdas():
 filedir = ""
 
 def format_ast(ast, imported = []):
-    main = []
-    newast = []
-    imp = []
-    gvar = []
-
-    for a in ast:
-        if a[0] == "import":
-            if a[1]  not in imported:
-                imp.append(a)
-        elif a[0] == "gassign":
-            gvar.append(a)
-        # elif a[0] == "lambda":
-        #     lambdaName = Fresh("lambda")
-        #     newast.append(("dDef", lambdaName, [a[1]], a[2]))
-        else: 
+    def format_value_statement(ast):
+        wfAst = []
+        for a in ast:
             if a[0] in ["aexp", "bexp", "array", "Num", "FNum", "Var"]:
                 z = Fresh("tmp")
-                a = ('assign', ('Var', z), a)
-            main.append(a)
-
-    if len(main) == 0:
-        main = main + [('skip', None)]
-
-    for i in gvar:
-        newast.append(("dAssign", i[1], i[2]))
-
-    for i in imp:
-        whilePostfix = i[1].find(".while")
-        if whilePostfix < 0:
-            filename = filedir + i[1] + ".while"
-            varname = i[1]
-        else:
-            filename = filedir + i[1]
-            varname = i[1][0:whilePostfix]
-        impFile = open(filename)
-        impData = impFile.read()
-        impFile.close()
-        p = parser.parse(impData)
-        asti = format_ast(p, imported + imp)
-        for j in asti:
-            if j[0] == "dMain":
-                newast.append(("dDef", varname, [], j[1]))
+                wfAst.append(('assign', ('Var', z), a))
             else:
-                newast.append(j)
-    
-    newast.append(("dMain", main))
-    return newast
+                wfAst.append(a)
+        return wfAst
+
+    def extract_gvar(ast):
+        gvarAst = []
+        rest = []
+        for a in ast:
+            if a[0] == "gassign":
+                gvarAst.append(("dAssign", a[1], a[2]))
+            else:
+                rest.append(a)
+        return (gvarAst, rest)
+
+    def extract_imports(ast):
+        imports = []
+        wfAst = []
+        rest = []
+        for a in ast:
+            if a[0] == "import":
+                if a[1]  not in imported:
+                    imports.append(a)
+            else:
+                rest.append(a)
+
+        for i in imports:
+            whilePostfix = i[1].find(".while")
+            if whilePostfix < 0:
+                filename = filedir + i[1] + ".while"
+                varname = i[1]
+            else:
+                filename = filedir + i[1]
+                varname = i[1][0:whilePostfix]
+            impFile = open(filename)
+            impData = impFile.read()
+            impFile.close()
+            p = parser.parse(impData)
+            asti = format_ast(p, imported + imports)
+            for j in asti:
+                if j[0] == "dMain":
+                    wfAst.append(("dDef", varname, [], j[1]))
+                else:
+                    wfAst.append(j)
+
+        return (wfAst, rest)
+
+    newAst = []
+
+    ast = format_value_statement(ast)
+    w, rest = extract_gvar(ast)
+    newAst = newAst + w
+    w, rest = extract_imports(rest)
+    newAst = newAst + w
+
+    if len(rest) == 0:
+        rest = [('skip', None)]
+    newAst.append(("dMain", rest))
+
+    return newAst
 
 def compile(ast):
     prog = format_ast(ast)
