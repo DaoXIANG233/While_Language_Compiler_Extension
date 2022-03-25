@@ -104,6 +104,10 @@ def p_ab_aexp(p):
 def p_ab_paren(p):
     '''ab : LPAREN bexp RPAREN'''
     p[0] = p[2]
+
+def p_lambda(p):
+    '''lambda : list LAMBDAOPERATOR block'''
+    p[0] = ('lambda', p[1], p[3], None)
     
 # def p_bexp_paren(p):
 #     '''bexp : LPAREN bexp RPAREN'''
@@ -210,6 +214,10 @@ def p_statement_import(p):
 def p_statement_gassign(p):
     '''stmt : GLOBAL variable ASSOPERATOR aexp'''
     p[0] = ('gassign', p[2], p[4])
+
+def p_statement_then(p):
+    '''stmt : block DOT THEN LPAREN lambda RPAREN'''
+    p[0] = ('then', p[1], p[5])
 
 def p_statements(p):
     '''stmts : stmt SEMICOLON stmts'''

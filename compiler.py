@@ -116,6 +116,7 @@ strEnv = []     #element form (var name, string value, pointer var name)
 alloca = []     #element form (var name)
 ptrlst = []     #element form (var name)    #ptrlst = alloca + list(gvarEnv.keys())
 
+lambdaEnv = []  #element form (var name, [(kvar)], kexp, type)
 gvarEnv = {}    #element form {var name : var type}
 funEnv = {  "i32_to_double" : "double",
             "double_to_i32" : "i32",
@@ -294,6 +295,39 @@ def CPS(stmt, f):
             elseLabel = Fresh("else_branch")
             endLabel = Fresh("if_end")
             return CPS(bExp[2], lambda y1 : CPS(bExp[3], lambda y2 : ("klet", z, ("kop", bExp[1], y1, y2), ("kif", z, CPSB(blIf, lambda x1 : registerIf(x1)), CPSB(blEl, lambda x2 : registerElse(x2)), ("klet", phi, ("kphi", (ifReg, ifLabel), (elseReg, elseLabel), regTy), f(("kvar", phi, regTy))), (ifLabel, elseLabel, endLabel)))))
+
+        case "lambda":
+            # def aux3(args, vs):
+            #     if len(args) == 0:
+            #         return vs
+            #     else:
+            #         return CPS(args[0], lambda y : aux3(args[1:], vs+[y]))
+            ty = "void"
+            def registerTy(y):
+                nonlocal ty
+                ty = get_type(y)
+                return ("kreturn", y)
+
+            lambdaName = Fresh("lambda")
+            arg = ("kvar", stmt[1][0][1], get_type(stmt[3]))
+            varEnv[arg[1]] = arg[2]
+
+            body = CPSB(stmt[2], lambda y : registerTy(y))
+            body = format_klang(body)
+            # args = aux3(stmt[1], [])
+
+            lambdaEnv.append((lambdaName, [arg], body, ty))
+            funEnv[lambdaName] = ty
+            if ty != "void":
+                z = Fresh("tmp")
+                return ("klet", z, ("kcall", lambdaName, [stmt[3]], ty), f(("kvar", z, ty)))
+            else:
+                return ("kcallv", lambdaName, [stmt[3]], f(("kvoid", "")))
+        case "then":
+            print(f"then statement: {stmt}")
+            if stmt[2][0] == "lambda":
+                return CPSB(stmt[1], lambda y1 : CPS(('lambda', stmt[2][1], stmt[2][2], y1), f))
+            return CPSB(stmt[1], lambda y1 : CPSB(stmt[2], f))
         case "skip":
             return ("kcallv", "skip", [], f(("kvoid", "")))
         case _:
@@ -961,19 +995,24 @@ def compile_decl(d):
             s = f"@{d[1][1]} = global {ty} {d[2][1]}"
             return s
         case "dDef":
+            def aux3(args, vs):
+                if len(args) == 0:
+                    return vs
+                else:
+                    return CPS(args[0], lambda y : aux3(args[1:], vs+[y]))
             funTy = "void"
             def retTy(r):
                 print(f"r: {r}")
                 nonlocal funTy
                 funTy = get_type(r)
                 return ("kreturn", r)
-            cpsb = CPSB(d[2], lambda x : retTy(x))
+            cpsb = CPSB(d[3], lambda x : retTy(x))
             cpsb = format_klang(cpsb)
             # print("after format_klang:")
             # print(cpsb)
             # cpsb = CPSB(d[1], lambda x : ("kreturn", x))
             funEnv[d[1]] = funTy
-            s = compile_str() + m(f"define {funTy} @{d[1]}() " + "{") + compile_alloca() + compile_str_ptr() + compile_exp(cpsb) + m("}\n")
+            s = compile_str() + m(f"define {funTy} @{d[1]}({compile_args(aux3(d[2], []))}) " + "{") + compile_alloca() + compile_str_ptr() + compile_exp(cpsb) + m("}\n")
             return s
         case "dMain":
             cpsb = CPSB(d[1], lambda x : ("kreturn", ("knum", 0, "i32")))
@@ -986,25 +1025,14 @@ def compile_decl(d):
             s = compile_str() + m("define i32 @main() {") + compile_alloca() + compile_str_ptr() + compile_exp(cpsb) + m("}\n")
             return s
 
-# def compile_decl(d: Decl) : String = d match {
-#   case Assign(name, ty, value) => {
-#     globalVals += (name -> type_change(ty))
-#     varEnv += (name -> type_change(ty))
-#     m"@$name = global ${type_change(ty)} ${compile_val(KTrans(value))} \n"
-#   }
-#   case Def(name, args, ret, body) => {
-#     globalFuns += (name -> (args.map(d => type_change(d.t)), type_change(ret)))
-#     args.map(d => (d.s -> type_change(d.t))).foreach(e => varEnv += e)
-#     m"define ${type_change(ret)} @$name (${args.map(d => s"${type_change(d.t)} %${d.s}").mkString(", ")}) {" ++
-#     compile_exp(CPSB(body)(KReturn)) ++
-#     m"}\n"
-#   }
-#   case Main(body) => {
-#     m"define i32 @main() {" ++
-#     compile_exp(CPSB(body)(v => KLet("last", v, KReturn(KNum(0))))) ++
-#     m"}\n"
-#   }
-# }
+def compile_lambdas():
+    #lambdaEnv = []  #element form (var name, [(kvar)], kexp, type)
+    print(f"lambda environment: {lambdaEnv}")
+    s = ""
+    for i in lambdaEnv:
+        ty = i[3] or "void"
+        s = s + m(f"define {ty} @{i[0]}({compile_args(i[1])}) " + "{") + compile_exp(i[2]) + m("}\n")
+    return s
 
 filedir = ""
 
@@ -1014,17 +1042,20 @@ def format_ast(ast, imported = []):
     imp = []
     gvar = []
 
-    for i in ast:
-        if i[0] == "import":
-            if i[1]  not in imported:
-                imp.append(i)
-        elif i[0] == "gassign":
-            gvar.append(i)
+    for a in ast:
+        if a[0] == "import":
+            if a[1]  not in imported:
+                imp.append(a)
+        elif a[0] == "gassign":
+            gvar.append(a)
+        # elif a[0] == "lambda":
+        #     lambdaName = Fresh("lambda")
+        #     newast.append(("dDef", lambdaName, [a[1]], a[2]))
         else: 
-            if i[0] in ["aexp", "bexp", "array", "Num", "FNum", "Var"]:
+            if a[0] in ["aexp", "bexp", "array", "Num", "FNum", "Var"]:
                 z = Fresh("tmp")
-                i = ('assign', ('Var', z), i)
-            main.append(i)
+                a = ('assign', ('Var', z), a)
+            main.append(a)
 
     if len(main) == 0:
         main = main + [('skip', None)]
@@ -1047,7 +1078,7 @@ def format_ast(ast, imported = []):
         asti = format_ast(p, imported + imp)
         for j in asti:
             if j[0] == "dMain":
-                newast.append(("dDef", varname, j[1]))
+                newast.append(("dDef", varname, [], j[1]))
             else:
                 newast.append(j)
     
@@ -1058,7 +1089,8 @@ def compile(ast):
     prog = format_ast(ast)
     print("formated AST:")
     print(prog)
-    progll = pre2 + '\n'.join(list(map(compile_decl, prog)))
+    progll = '\n'.join(list(map(compile_decl, prog)))
+    progll = pre2 + compile_lambdas() + progll
     # return prelude + "\n" + progll
     return progll
 
@@ -1081,6 +1113,7 @@ if __name__ == '__main__':
     # print(CPSB(p, lambda x : ("kreturn", x)))
     print(CPSB(p, lambda x : ("kreturn", ("knum", 0, "i32"))))
     RefreshEnv()
+    lambdaEnv = []
     print("\nLLVM: ")
     ll = compile(p)
     print(ll)

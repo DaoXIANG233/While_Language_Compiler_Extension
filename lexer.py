@@ -13,8 +13,8 @@ keywords = { 'skip' : 'SKIP',
             'then' : 'THEN',
             'else' : 'ELSE',
             'read' : 'READ',
-            'write': 'WRITE',
-            'writeln': 'WRITELN',
+            'write' : 'WRITE',
+            'writeln' : 'WRITELN',
             # 'for' : 'FOR',
             # 'to' : 'TO'
             }
@@ -32,7 +32,8 @@ t_BCOPERATOR = r'==|!=' # Boolean Compare operators
 t_LBOPERATOR = r'&&|\|\|' # Logic Boolean operators
 boperators = ['ABOPERATOR', 'BCOPERATOR', 'LBOPERATOR']
 t_ASSOPERATOR = r':=' # Assign
-operators = ['ASSOPERATOR'] + aoperators + boperators
+t_LAMBDAOPERATOR = r'=>' # Lambda
+operators = ['ASSOPERATOR', 'LAMBDAOPERATOR'] + aoperators + boperators
 # t_LETTER = r'[a-zA-Z]'
 # t_SYMBOL = r'[a-zA-Z._><=;,\\:]'
 def t_WHITESPACE(t):
@@ -49,6 +50,7 @@ def t_NUMBER(t):
     return t
 t_STRING = r'"(.+?)"'
 t_SEMICOLON = r';'
+t_DOT = r'\.'
 t_COMMA = r','
 # t_PARENTHESIS = r'{|}|\(|\)'
 t_LBRACE = r'{'
@@ -68,7 +70,7 @@ def t_COMMENT(t):
     r'//(.*?)\n'
     pass
 
-tokens = ['BKEYWORD', 'IDENTIFIER', 'FNUMBER', 'NUMBER', 'SEMICOLON', 'COMMA', 'STRING',  'WHITESPACE', 'COMMENT'] + list(keywords.values()) + parens + operators
+tokens = ['BKEYWORD', 'IDENTIFIER', 'FNUMBER', 'NUMBER', 'SEMICOLON', 'DOT', 'COMMA', 'STRING',  'WHITESPACE', 'COMMENT'] + list(keywords.values()) + parens + operators
 
 # Error handling rule
 def t_error(t):
