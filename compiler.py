@@ -1,6 +1,7 @@
 # python3 compiler.py test/test.while
 # lli -march=arm64 testll/test2.ll 
 
+from numpy import append
 import parser
 import sys
 
@@ -1088,6 +1089,23 @@ def format_ast(ast, imported = []):
                     wfAst.append(j)
 
         return (wfAst, rest)
+    
+    def format_block(ast):
+        wfAst = []
+        rest = []
+        for a in ast:
+            if a[0] == "then":
+                blockAst = format_ast(a[1], imported)
+                bl = []
+                for i in blockAst:
+                    if i[0] == "dMain":
+                        bl = bl + i[1]
+                    else:
+                        wfAst.append(i)
+                rest.append(('then', bl, a[2]))
+            else:
+                rest.append(a)
+        return (wfAst, rest)
 
     newAst = []
 
@@ -1095,6 +1113,8 @@ def format_ast(ast, imported = []):
     w, rest = extract_gvar(ast)
     newAst = newAst + w
     w, rest = extract_imports(rest)
+    newAst = newAst + w
+    w, rest = format_block(rest)
     newAst = newAst + w
 
     if len(rest) == 0:
