@@ -164,8 +164,12 @@ def p_statement_assign(p):
     p[0] = ('assign', p[1], p[3])
 
 def p_call(p):
-    '''call : IDENTIFIER LPAREN list RPAREN'''
-    p[0] = ('call', p[1], p[3])
+    '''call : IDENTIFIER LPAREN list RPAREN
+            | IDENTIFIER LPAREN RPAREN'''
+    if (5 == len(p)):
+        p[0] = ('call', p[1], p[3])
+    else:
+        p[0] = ('call', p[1], [])
 def p_statement_call(p):
     '''stmt : call'''
     p[0] = p[1]
