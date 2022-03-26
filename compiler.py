@@ -1,7 +1,6 @@
 # python3 compiler.py test/test.while
 # lli -march=arm64 testll/test2.ll 
 
-from numpy import append
 import parser
 import sys
 
@@ -29,8 +28,40 @@ def format_bexp(x):
             return ("fbexp", ">", x, ("Num", 0))
         case "FNum":
             return ("fbexp", ">", x, ("Num", 0))
+        case "not":
+            return negate_bexp(format_bexp(x[1]))
         case _:
             return x
+
+def negate_bexp(x):
+    def negate_ops(op):
+        match op:
+            case "==":
+                return "!="
+            case "!=":
+                return "=="
+            case ">":
+                return "<="
+            case "<":
+                return ">="
+            case "<=":
+                return ">"
+            case ">=":
+                return "<"
+    
+    if x[0] != "fbexp":
+        raise (f"format boolean expression error, error expression: {x}")
+
+    if x[1] == "&&":
+        left = negate_bexp(x[2])
+        right = negate_bexp(x[3])
+        return ("fbexp", "||", left, right)
+    if x[1] == "||":
+        left = negate_bexp(x[2])
+        right = negate_bexp(x[3])
+        return ("fbexp", "&&", left, right)
+    else:
+        return ("fbexp", negate_ops(x[1]), x[2], x[3])
 
 # def format_aexp(x):
 #     match x[0]:
@@ -288,6 +319,7 @@ def CPS(stmt, f):
                     return ("kass", elseReg, x, ("knone", None))
 
             bExp = format_bexp(stmt[1])
+            print(f"after format bexp: {bExp}")
             blIf = stmt[2]
             blEl = stmt[3]
             z = Fresh("tmp")

@@ -27,10 +27,11 @@ t_TIMES = r'\*'
 t_DIVIDE = r'/'
 t_REMAIN = r'%'
 aoperators = ['PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'REMAIN']
+t_BNOPERATOR = r'!' # Boolean NOT operator
 t_ABOPERATOR = r'>|<|<=|>=' # Arithmetic Boolean operators
 t_BCOPERATOR = r'==|!=' # Boolean Compare operators
 t_LBOPERATOR = r'&&|\|\|' # Logic Boolean operators
-boperators = ['ABOPERATOR', 'BCOPERATOR', 'LBOPERATOR']
+boperators = ['ABOPERATOR', 'BCOPERATOR', 'LBOPERATOR', 'BNOPERATOR']
 t_ASSOPERATOR = r':=' # Assign
 t_LAMBDAOPERATOR = r'=>' # Lambda
 operators = ['ASSOPERATOR', 'LAMBDAOPERATOR'] + aoperators + boperators
