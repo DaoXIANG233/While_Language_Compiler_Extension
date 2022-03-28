@@ -81,7 +81,7 @@ def p_fa_basic_neg(p):
 
 
 def p_bexp(p):
-    '''bexp : bexp LBOPERATOR bn'''
+    '''bexp : bexp LBOPERATOR bc'''
     p[0] = ('bexp', p[2], p[1], p[3])
 def p_bexp_bc(p):
     '''bexp : bc'''
