@@ -21,13 +21,13 @@ def format_bexp(x):
             else:
                 return ("fbexp", x[1], x[2], x[3])
         case "aexp":
-            return ("fbexp", ">", x, ("Num", 0))
+            return ("fbexp", "!=", x, ("Num", 0))
         case "Var":
-            return ("fbexp", ">", x, ("Num", 0))
+            return ("fbexp", "!=", x, ("Num", 0))
         case "Num":
-            return ("fbexp", ">", x, ("Num", 0))
+            return ("fbexp", "!=", x, ("Num", 0))
         case "FNum":
-            return ("fbexp", ">", x, ("Num", 0))
+            return ("fbexp", "!=", x, ("Num", 0))
         case "not":
             return negate_bexp(format_bexp(x[1]))
         case _:
@@ -153,7 +153,9 @@ gvarEnv = {}    #element form {var name : var type}
 funEnv = {  "i32_to_double" : "double",
             "double_to_i32" : "i32",
             "i32_to_i1" : "i1",
+            "i1_to_i32" : "i32",
             "double_to_i1" : "i1",
+            "i1_to_double" : "double",
             "read" : "i32"}
 def RefreshEnv():
     global varEnv, strEnv, alloca
@@ -191,6 +193,8 @@ def CPS(stmt, f):
         case "aexp":
             z = Fresh("tmp")
             return CPS(stmt[2], lambda y1 : CPS(stmt[3], lambda y2 : ("klet", z, ("kop", stmt[1], y1, y2), f(("kvar", z, get_type(("kop", stmt[1], y1, y2)))))))
+        case "not":
+            return CPS(format_bexp(stmt), f)
         case "bexp":
             stmt = format_bexp(stmt)
             z = Fresh("tmp")
@@ -343,6 +347,9 @@ def CPS(stmt, f):
 
             lambdaName = Fresh("lambda")
             arg = ("kvar", stmt[1][0][1], get_type(stmt[3]))
+            #FIXME: problem with example {y:=1+1}.then(x=>{y:=x+2;writeln(y)}),
+            # y var is already defined in varEnv so in the lambda it try to store in the y pointer
+            # if varEnv is refreshed then if there are statements after the lambda, error happens.
             varEnv[arg[1]] = arg[2]
 
             body = CPSB(stmt[2], lambda y : registerTy(y))
@@ -364,7 +371,7 @@ def CPS(stmt, f):
         case "skip":
             return ("kcallv", "skip", [], f(("kvoid", "")))
         case _:
-            return ("unknown")
+            return ("unknown", stmt)
 
 
 def CPSB(bl, f):
@@ -945,13 +952,31 @@ define i32 @double_to_i32(double %x) {
 }
 
 define i1 @i32_to_i1(i32 %x) {
-   %t0 = icmp sge i32  %x, 0
+   %t0 = icmp ne i32  %x, 0
    ret i1 %t0
 }
 
+define i32 @i1_to_i32(i1 %x) {
+   br i1 %x, label %i1_to_i32_t, label %i1_to_i32_f
+
+i1_to_i32_t:
+   ret i32 1
+i1_to_i32_f:
+   ret i32 0
+}
+
 define i1 @double_to_i1(double %x) {
-   %t0 = fcmp oge double  %x, 0.0
+   %t0 = fcmp one double  %x, 0.0
    ret i1 %t0
+}
+
+define double @i1_to_double(i1 %x) {
+   br i1 %x, label %i1_to_double_t, label %i1_to_double_f
+
+i1_to_double_t:
+   ret double 1.0
+i1_to_double_f:
+   ret double 0.0
 }
 
 define void @skip() {
