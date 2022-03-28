@@ -53,16 +53,16 @@ def p_array(p):
     p[0] = ('array', p[2])
 
 def p_aexp(p):
-    '''aexp : te PLUS aexp
-            | te MINUS aexp'''
+    '''aexp : aexp PLUS te
+            | aexp MINUS te'''
     p[0] = ('aexp', p[2], p[1], p[3])
 def p_aexp_te(p):
     '''aexp : te'''
     p[0] = p[1]
 def p_te(p):
-    '''te : fa TIMES te
-          | fa DIVIDE te
-          | fa REMAIN te'''
+    '''te : te TIMES fa
+          | te DIVIDE fa
+          | te REMAIN fa'''
     p[0] = ('aexp', p[2], p[1], p[3])
 def p_te_fa(p):
     '''te : fa'''
