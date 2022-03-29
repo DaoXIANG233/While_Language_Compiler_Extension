@@ -247,7 +247,7 @@ def p_block_single(p):
 
 def p_error(p):
     if not p:
-        print("SYNTAX ERROR AT EOF")
+        raise Exception("SYNTAX ERROR")
 
 whileParser = yacc.yacc(start='stmts')
 
