@@ -20,6 +20,10 @@ def p_fnum(p):
     '''number : FNUMBER'''
     p[0] = ('FNum', p[1])
 
+def p_bnum(p):
+    '''number : bool'''
+    p[0] = p[1]
+
 def p_str(p):
     '''string : STRING'''
     p[0] = ('Str', esc(p[1]))
