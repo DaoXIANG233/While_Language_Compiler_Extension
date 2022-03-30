@@ -230,6 +230,9 @@ def p_statement_gassign(p):
 def p_statement_then(p):
     '''stmt : block DOT THEN LPAREN lambda RPAREN'''
     p[0] = ('then', p[1], p[5])
+def p_statement_then_import(p):
+    '''stmt : block DOT THEN LPAREN IDENTIFIER RPAREN'''
+    p[0] = ('then', p[1], [('call', p[5], [])])
 
 def p_statements(p):
     '''stmts : stmt SEMICOLON stmts'''
