@@ -224,7 +224,7 @@ def p_statement_import(p):
     '''stmt : IMPORT IDENTIFIER'''
     p[0] = ('import', p[2])
 def p_statement_gassign(p):
-    '''stmt : GLOBAL variable ASSOPERATOR aexp'''
+    '''stmt : GLOBAL variable ASSOPERATOR number'''
     p[0] = ('gassign', p[2], p[4])
 
 def p_statement_then(p):
@@ -250,7 +250,7 @@ def p_block_single(p):
 
 def p_error(p):
     if not p:
-        raise Exception("SYNTAX ERROR")
+        print("SYNTAX ERROR AT EOF")
 
 whileParser = yacc.yacc(start='stmts')
 
@@ -259,7 +259,7 @@ def parse(data, debug=0):
     whileParser.error = 0
     p = whileParser.parse(data, debug=debug)
     if whileParser.error:
-        return None
+        raise Exception("SYNTAX ERROR")
     return p
 
 
