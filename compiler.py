@@ -1027,14 +1027,16 @@ def compile_alloca():
 def compile_str():
     s = ""
     for str in strEnv:
-        s = s + f"@{str[0]} = private unnamed_addr constant [{len(str[1]) + 1} x i8] c\"{str[1]}\\00\"" + "\n"
+        length = len(str[1]) - 2*str[1].count('\\') + 1
+        s = s + f"@{str[0]} = private unnamed_addr constant [{length} x i8] c\"{str[1]}\\00\"" + "\n"
     s = s + "\n"
     return s
 
 def compile_str_ptr():
     s = ""
     for str in strEnv:
-        s = s + i(f"%{str[2]} = getelementptr [{len(str[1]) + 1} x i8], [{len(str[1]) + 1} x i8]* @{str[0]}, i64 0, i64 0")
+        length = len(str[1]) - 2*str[1].count('\\') + 1
+        s = s + i(f"%{str[2]} = getelementptr [{length} x i8], [{length} x i8]* @{str[0]}, i64 0, i64 0")
     return s
 
 def compile_decl(d):

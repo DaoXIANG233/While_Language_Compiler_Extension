@@ -4,9 +4,8 @@ import sys
 
 tokens = lexer.tokens
 
-#TODO: change while lang escape code like '\"', '\\' to ascii code first when loaded, then change back with this esc method.
-def esc(str):
-    return str[1:-1].replace("\\n", "\n").replace("\\t", "\t")
+def esc(file):
+    return file.replace("\\\\", "\\5C").replace("\\\"", "\\22").replace("\\n", "\\0A").replace("\\t", "\\09")
 
 def p_id(p):
     '''variable : IDENTIFIER'''
@@ -26,7 +25,7 @@ def p_bnum(p):
 
 def p_str(p):
     '''string : STRING'''
-    p[0] = ('Str', esc(p[1]))
+    p[0] = ('Str', p[1][1:-1])
 
 def p_bool(p):
     '''bool : BKEYWORD'''
@@ -256,6 +255,7 @@ whileParser = yacc.yacc(start='stmts')
 
 
 def parse(data, debug=0):
+    data = esc(data)
     whileParser.error = 0
     p = whileParser.parse(data, debug=debug)
     if whileParser.error:
@@ -271,6 +271,7 @@ if __name__ == '__main__':
     print("'While' language file:")
     print(data)
     file.close()
+    data = esc(data)
     print("AST generated:")
     p = parse(data)
     print(p)
