@@ -95,8 +95,8 @@ def get_type(e):
             return e[2]
         case "kvar":
             return e[2]
-        case "kstr":
-            return e[2]
+        # case "kstr":
+        #     return e[2]
         case "kneg":
             return get_type(e[1])
         case "kop":
@@ -158,10 +158,11 @@ funEnv = {  "i32_to_double" : "double",
             "i1_to_double" : "double",
             "read" : "i32"}
 def RefreshEnv():
-    global varEnv, strEnv, alloca
+    global varEnv, strEnv, alloca, ptrlst
     varEnv = {}
     strEnv = []
     alloca = []
+    ptrlst = []
 
 def CPS(stmt, f):
     match stmt[0]:
@@ -438,6 +439,11 @@ def format_klang(k):
 
         match e[0]: #["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
             case "klet":
+                # right = check_ptr(e[2])
+                # if right != e[2]:
+                #     ptrlst = ptrlst + [e[1]]
+                # left = check_ptr(e[1])
+                # return ("klet", left, right, check_var_ty(e[3]))
                 return ("klet", e[1], check_ptr(e[2]), check_var_ty(e[3]))
             case "kreturn":
                 return ("kreturn", check_ptr(e[1]))
@@ -777,8 +783,8 @@ def compile_val(v):
             return f"%{v[1]}"
         case "kneg":
             return f"-{compile_val(v[1])}"
-        case "kstr":
-            return f"%{v[1]}"
+        # case "kstr":
+        #     return f"%{v[1]}"
         case "kop":
             tyL = get_type(v[2])
             tyR = get_type(v[3])
@@ -1062,7 +1068,6 @@ def compile_decl(d):
                     return CPS(args[0], lambda y : aux3(args[1:], vs+[y]))
             funTy = "void"
             def retTy(r):
-                print(f"r: {r}")
                 nonlocal funTy
                 funTy = get_type(r)
                 return ("kreturn", r)
