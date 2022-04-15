@@ -1,5 +1,7 @@
-# python3 compiler.py test/test.while
-# lli -march=arm64 testll/test2.ll 
+# compile with python3 compiler.py xxx.while
+# run with lli -march=arm64 xxx.ll 
+
+# Author: Dao Xiang, k1924711, 1903053
 
 import parser
 import sys
@@ -63,40 +65,12 @@ def negate_bexp(x):
     else:
         return ("fbexp", negate_ops(x[1]), x[2], x[3])
 
-# def format_aexp(x):
-#     match x[0]:
-#         # case "bexp":
-#         #     if x[1] in ['&&', '||']:
-#         #         left = format_aexp(x[2])
-#         #         right = format_aexp(x[3])
-#         #         return ("fbexp", x[1], left, right)
-#         #     else:
-#         #         return ("faexp", x[1], x[2], x[3])
-#         case "aexp":
-#             return ("faexp", x[1], x[2], x[3])
-#         case "Neg":
-#             if x[1][0] in ["Num", "FNum"]:
-#                 return CPS(x[1], lambda y : f(('kneg', y)))
-#             else:
-#                 return ("faexp", "-", ("Num", 0), x[1])
-#         case "Var":
-#             return ("faexp", "+", x, ("Num", 0))
-#         case "Num":
-#             return ("faexp", "+", x, ("Num", 0))
-#         case "FNum":
-#             return ("faexp", "+", x, ("Num", 0))
-#         case _:
-#             return x
-
 def get_type(e):
-    # kVals = ["knum", "kvar", "kneg", "kop", "kphi"]
     match e[0]:
         case "knum":
             return e[2]
         case "kvar":
             return e[2]
-        # case "kstr":
-        #     return e[2]
         case "kneg":
             return get_type(e[1])
         case "kop":
@@ -121,24 +95,6 @@ def get_type(e):
         case "kundef":
             return e[2]
         case "karr":
-            # l = len(e[1])
-            # if l < 1:
-            #     return "[0 x i32]"
-            
-            # firstE = e[1][0]
-            # if firstE[0] == "karr":
-            #     largestE = (len(firstE[1]), get_type(firstE))
-            # else:
-            #     largestE = (1, get_type(firstE))
-
-            # for i in e[1:]:
-            #     # TODO: type check.
-            #     # if get_type(i) != largestE[1]:
-            #     #     raise Exception("array type error")
-
-            #     if i[0] == "karr" and len(i[1]) > largestE[0]:
-            #         largestE = (len(i[1]), get_type(i))
-            # return f"[{l} x {largestE[1]}]"
             return e[2]
         case _:
             return "undef"
@@ -178,11 +134,6 @@ def CPS(stmt, f):
             sl = Fresh("str")
             z = Fresh("tmp")
             strEnv.append((sl, stmt[1], z))
-            # print("strEnv:")
-            # print(strEnv)
-            # return f(("kstr", sl, f"[{len(stmt[1]) + 1} x i8]"))
-
-            # return f(("kstr", z, "i8*"))
             return f(("kvar", z, "i8*"))
         case "Neg":
             if stmt[1][0] in ["Num", "FNum"]:
@@ -232,7 +183,6 @@ def CPS(stmt, f):
                     v = vars[0]
                     if "Var" != v[0]:
                         raise Exception("Read Error: must store read input into a variable.")
-                    # return CPS(v, lambda y : ("kass", (y[0], y[1], "i8*"), ("kcall", "read", [], "i8*"), recRead(vars[1:], y)))
                     return CPS(("assign", v, ("call", "read", [])), lambda y : recRead(vars[1:], y))
             return recRead(stmt[1])
 
@@ -250,10 +200,6 @@ def CPS(stmt, f):
                         largestE = (1, get_type(firstE))
 
                     for i in vs[1:]:
-                        # TODO: type check.
-                        # if get_type(i) != largestE[1]:
-                        #     raise Exception("array type error")
-
                         if i[0] == "karr" and len(i[1]) > largestE[0]:
                             largestE = (len(i[1]), get_type(i))
                     
@@ -293,7 +239,6 @@ def CPS(stmt, f):
             bodyWhile = Fresh("while_body")
             endWhile = Fresh("while_end")
             z = Fresh("cond")
-            # return CPS(cond[2], lambda y1 : CPS(cond[3], lambda y2 : ("kwhile", z, ( "klet", z, ("kop", cond[1], y1, y2), ("knone", None)), CPSB(bl, lambda x : registerLast(x)), f(reg), (entryWhile, condWhile, bodyWhile, endWhile))))
             return ("kwhile", z, CPS(cond, lambda y : ("kass", ("kvar", z, "i1"), y, ("knone", None))), CPSB(bl, lambda x : registerLast(x)), f(reg), (entryWhile, condWhile, bodyWhile, endWhile))
 
         case "if":
@@ -335,11 +280,6 @@ def CPS(stmt, f):
             return CPS(bExp[2], lambda y1 : CPS(bExp[3], lambda y2 : ("klet", z, ("kop", bExp[1], y1, y2), ("kif", z, CPSB(blIf, lambda x1 : registerIf(x1)), CPSB(blEl, lambda x2 : registerElse(x2)), ("klet", phi, ("kphi", (ifReg, ifLabel), (elseReg, elseLabel), regTy), f(("kvar", phi, regTy))), (ifLabel, elseLabel, endLabel)))))
 
         case "lambda":
-            # def aux3(args, vs):
-            #     if len(args) == 0:
-            #         return vs
-            #     else:
-            #         return CPS(args[0], lambda y : aux3(args[1:], vs+[y]))
             ty = "void"
             def registerTy(y):
                 nonlocal ty
@@ -379,29 +319,7 @@ def CPSB(bl, f):
     if (1 == len(bl)):
         return CPS(bl[0], f)
     else:
-        # any = Fresh("any")
-        # return CPS(bl[0], lambda v : ("klet", any, v, CPSB(bl[1:], f)))
         return CPS(bl[0], lambda v : CPSB(bl[1:], f))
-
-# bl1 = [('call', 'write', [('Str', '"Input a number "')]), ('call', 'read', [('Var', 'n')]), ('call', 'write', [('Str', '"Yes"')])]
-# print(CPSB(bl1, lambda x : ("kreturn", x)))
-
-# bl2 = [('assign', ('Var', 'n'), ('Num', 1))]
-# print(CPSB(bl2, lambda x : ("kreturn", x)))
-
-# bl3 = [('assign', ('Var', 'n'), ('FNum', 1.0))]
-# print(CPSB(bl3, lambda x : ("kreturn", x)))
-
-# bl4 = [('assign', ('Var', 'n'), ('aexp', '/', ('Var', 'n'), ('Num', 2)))]
-# print(CPSB(bl4, lambda x : ("kreturn", x)))
-
-# bl5 = [('assign', ('Var', 'n'), ('bexp', '&&', ('Var', 'n'), ('FNum', 2.0)))]
-# print(CPSB(bl5, lambda x : ("kreturn", x)))
-
-#TODO: format ast to include lambda, global variables, imports.
-# def format_ast(ast):
-#     def extract_lambda():
-#         return
 
 kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
 kVals = ["knum", "kvar", "kneg", "kop", "kphi", "kcall", "karr", "kvoid", "kcast", "kundef"]
@@ -424,7 +342,7 @@ def format_klang(k):
                     left = check_ptr(v[2])
                     right = check_ptr(v[3])
                     return ("kop", v[1], left, right)
-                case "kphi":    #("kphi", (ifReg, ifLabel), (elseReg, elseLabel), get_type(ifReg))
+                case "kphi":
                     first = check_ptr(v[1][0])
                     second = check_ptr(v[2][0])
                     ty = get_type(v[1][0])
@@ -437,13 +355,8 @@ def format_klang(k):
                 case _:
                     return v
 
-        match e[0]: #["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
+        match e[0]: 
             case "klet":
-                # right = check_ptr(e[2])
-                # if right != e[2]:
-                #     ptrlst = ptrlst + [e[1]]
-                # left = check_ptr(e[1])
-                # return ("klet", left, right, check_var_ty(e[3]))
                 return ("klet", e[1], check_ptr(e[2]), check_var_ty(e[3]))
             case "kreturn":
                 return ("kreturn", check_ptr(e[1]))
@@ -468,7 +381,7 @@ def format_klang(k):
                 return e
 
 
-    def format_kass(e):#["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
+    def format_kass(e):
         match e[0]:
             case "klet":
                 return ("klet", e[1], e[2], format_kass(e[3]))
@@ -506,8 +419,6 @@ def format_klang(k):
                     return (vars, kval)
                 case "kvar":
                     if kval[1] in ptrlst:
-                        # tmp = Fresh("tmp")
-                        # return (vars + [(kval, tmp)], ("kvar", tmp, kval[2]))
                         if kval not in [x[0] for x in vars]:
                             tmp = Fresh("tmp")
                             return (vars + [(kval, tmp)], ("kvar", tmp, kval[2][0:-1]))
@@ -523,9 +434,6 @@ def format_klang(k):
                     right = extract_vars(kval[3], left[0])
                     return (right[0], ("kop", kval[1], left[1], right[1])) 
                 case "kphi":
-                    # br1 = extract_vars(kval[1][0], vars)
-                    # br2 = extract_vars(kval[2][0], br1[0])
-                    # return (br2[0], ("kphi", (br1[1], kval[1][1]), (br2[1], kval[2][1]), kval[3]))
                     return (vars, kval)
                 case "kcall":
                     eVars = []
@@ -590,7 +498,6 @@ def format_klang(k):
                 return e
 
     def manage_branches(e):
-        # kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone"]
         def last_branch(ke):
             match ke[0]:
                 case "klet":
@@ -627,7 +534,6 @@ def format_klang(k):
                 return e
 
     def type_conversion(e):
-        # kExps = ["klet", "kreturn", "kass", "kif", "kload", "kwhile", "knone", "kcallv"]
         def kval_type_change(kval):
             match kval[0]:
                 case "kneg":
@@ -783,8 +689,6 @@ def compile_val(v):
             return f"%{v[1]}"
         case "kneg":
             return f"-{compile_val(v[1])}"
-        # case "kstr":
-        #     return f"%{v[1]}"
         case "kop":
             tyL = get_type(v[2])
             tyR = get_type(v[3])
@@ -819,10 +723,6 @@ def compile_exp(e):
             return i(f"store {get_type(e[2])} {compile_val(e[2])}, {get_type(e[1])} {compile_val(e[1])}, align 4") + compile_exp(e[3])
         case "kload":
             ty = get_type(e[2])
-            # if gvarEnv.get(e[2][1]):
-            #     return i(f"%{e[1]} = load {ty}, {ty}* @{e[2][1]}") + compile_exp(e[3])
-            # else:
-            #     return i(f"%{e[1]} = load {ty}, {ty}* %{e[2][1]}, align 4") + compile_exp(e[3])
             return i(f"%{e[1]} = load {ty[0:-1]}, {ty} {compile_val(e[2])}, align 4") + compile_exp(e[3])
         case "kcallv":
             return i(f"call void @{e[1]} ({compile_args(e[2])})") + compile_exp(e[3])
@@ -839,101 +739,6 @@ def compile_exp(e):
             return i(f"br label %{entry}") + l(f"\n{entry}") + i(f"br label %{cond}") + l(f"\n{cond}") + compile_exp(e[2]) + i(f"br i1 %{e[1]}, label %{body}, label %{end}") + l(f"\n{body}") + compile_exp(e[3]) + i(f"br label %{cond}") + l(f"\n{end}") + compile_exp(e[4])
         case "knone":
             return ""
-
-
-# // compile K expressions
-# def compile_exp(a: KExp) : String = a match {
-#   case KReturn(v) =>{
-#       val kValTup1 = compile_env(v)
-#       if (kValTup1._3 == "void") {
-#         kValTup1._1 ++
-#         compile_val(kValTup1._2) ++
-#         i"ret void"
-#       } else v match {
-#         case KCall(name, args) => {
-#           val z = Fresh("tmp")
-#           compile_exp(KLet(z, KCall(name, args), KReturn(KVar(z))))
-#         }
-#         case _ => kValTup1._1 ++ i"ret ${kValTup1._3} ${compile_val(kValTup1._2)}"
-#       }
-#     }
-#   case KLet(x: String, v: KVal, e: KExp) => {
-#       val kValTup1 = compile_env(v)
-#       varEnv += (x -> kValTup1._3)
-#       if (kValTup1._3 == "void") {
-#         kValTup1._1 ++
-#         compile_val(kValTup1._2) ++ 
-#         compile_exp(e)
-#       } else {
-#         kValTup1._1 ++
-#         i"%$x = ${compile_val(kValTup1._2)}" ++ compile_exp(e)
-#       }
-#     }
-# }
-
-prelude = """
-
-declare i32 @printf(i8*, ...)
-
-@.str = private constant [4 x i8] c"%d\\0A\\00"
-@.char = private constant [3 x i8] c"%c\\00"
-
-@.str_nl = private constant [2 x i8] c"\\0A\\00"
-@.str_star = private constant [2 x i8] c"*\\00"
-@.str_space = private constant [2 x i8] c" \\00"
-
-define void @new_line() #0 {
-  %t0 = getelementptr [2 x i8], [2 x i8]* @.str_nl, i32 0, i32 0
-  %1 = call i32 (i8*, ...) @printf(i8* %t0)
-  ret void
-}
-
-define void @print_star() #0 {
-  %t0 = getelementptr [2 x i8], [2 x i8]* @.str_star, i32 0, i32 0
-  %1 = call i32 (i8*, ...) @printf(i8* %t0)
-  ret void
-}
-
-define void @print_space() #0 {
-  %t0 = getelementptr [2 x i8], [2 x i8]* @.str_space, i32 0, i32 0
-  %1 = call i32 (i8*, ...) @printf(i8* %t0)
-  ret void
-}
-
-define void @skip() #0 {
-  ret void
-}
-
-define i32 @printInt(i32 %x) {
-   %t0 = getelementptr [4 x i8], [4 x i8]* @.str, i32 0, i32 0
-   call i32 (i8*, ...) @printf(i8* %t0, i32 %x) 
-   ret i32 %x
-}
-
-define void @printChar(i32 %x) {
-   %t0 = getelementptr [3 x i8], [3 x i8]* @.char, i32 0, i32 0
-   call i32 (i8*, ...) @printf(i8* %t0, i32 %x) 
-   ret void
-}
-
-"""
-
-# declare i32 @printf(i8*, ...)
-# @.str = private unnamed_addr constant [3 x i8] c"%f\\00", align 1
-
-# define i32 @write() #0 {
-# %a = alloca double, align 8
-# %1 = load double* %a, align 8
-# %2 = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([3 x i8]*  @.str, i32 0, i32 0), double %1)
-# ret i32 0
-# }
-# declare i8* @readline(i8*)
-
-# @.read = private unnamed_addr constant [8 x i8] c"input> \\00", align 1
-# define i8* @read() {
-#     %t0 = call i8* @readline(i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.read, i64 0, i64 0))
-#     ret i8* %t0
-# }
 
 pre2 = """
 
@@ -1073,9 +878,6 @@ def compile_decl(d):
                 return ("kreturn", r)
             cpsb = CPSB(d[3], lambda x : retTy(x))
             cpsb = format_klang(cpsb)
-            # print("after format_klang:")
-            # print(cpsb)
-            # cpsb = CPSB(d[1], lambda x : ("kreturn", x))
             funEnv[d[1]] = funTy
             s = compile_str() + m(f"define {funTy} @{d[1]}({compile_args(aux3(d[2], []))}) " + "{") + compile_alloca() + compile_str_ptr() + compile_exp(cpsb) + m("}\n")
             return s
@@ -1086,12 +888,10 @@ def compile_decl(d):
             cpsb = format_klang(cpsb)
             print("cpsb after format_klang:")
             print(cpsb)
-            # cpsb = CPSB(d[1], lambda x : ("kreturn", x))
             s = compile_str() + m("define i32 @main() {") + compile_alloca() + compile_str_ptr() + compile_exp(cpsb) + m("}\n")
             return s
 
 def compile_lambdas():
-    #lambdaEnv = []  #element form (var name, [(kvar)], kexp, type)
     print(f"lambda environment: {lambdaEnv}")
     s = ""
     for i in lambdaEnv:
@@ -1193,7 +993,6 @@ def compile(ast):
     print(prog)
     progll = '\n'.join(list(map(compile_decl, prog)))
     progll = pre2 + compile_lambdas() + progll
-    # return prelude + "\n" + progll
     return progll
 
 if __name__ == '__main__':
@@ -1211,11 +1010,6 @@ if __name__ == '__main__':
     print("\nAST generated:")
     p = parser.parse(data)
     print(p)
-    print("\nCPSB:")
-    # print(CPSB(p, lambda x : ("kreturn", x)))
-    print(CPSB(p, lambda x : ("kreturn", ("knum", 0, "i32"))))
-    RefreshEnv()
-    lambdaEnv = []
     print("\nLLVM: ")
     ll = compile(p)
     print(ll)

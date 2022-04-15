@@ -1,3 +1,5 @@
+# Author: Dao Xiang, k1924711, 1903053
+
 import lexer
 import ply.yacc as yacc
 import sys
@@ -116,43 +118,6 @@ def p_lambda(p):
     '''lambda : list LAMBDAOPERATOR block'''
     p[0] = ('lambda', p[1], p[3], None)
     
-# def p_bexp_paren(p):
-#     '''bexp : LPAREN bexp RPAREN'''
-#     p[0] = p[2]
-# def p_bexp_ab(p):
-#     '''bexp : ab
-#             | bc
-#             | bool'''
-#     p[0] = p[1]
-# def p_ab(p):
-#     '''ab : aexp ABOPERATOR aexp'''
-#     p[0] = ('bexp', p[2], p[1], p[3])
-# def p_bc(p):
-#     '''bc : aexp BCOPERATOR aexp
-#           | bool BCOPERATOR aexp
-#           | aexp BCOPERATOR bool'''
-#     p[0] = ('bexp', p[2], p[1], p[3])
-
-
-# def p_ab_paren(p):
-#     '''ab : LPAREN ab RPAREN'''
-#     p[0] = p[2]
-# def p_ab_basic(p):
-#     '''ab : bool'''
-#     p[0] = p[1]
-
-
-# def p_bexp(p):
-# def p_bexp_nested(p):
-#     '''bexp : bexp LBOPERATOR bexp'''
-#     p[0] = ('bexp', p[2], p[1], p[3])
-# def p_bexp_basic(p):
-#     '''bexp : bool'''
-#     p[0] = p[1]
-# def p_bexp_paren(p):
-#     '''bexp : LPAREN bexp RPAREN'''
-#     p[0] = p[2]
-
 def p_statement_basic(p):
     '''stmt : stmt SEMICOLON'''
     p[0] = p[1]

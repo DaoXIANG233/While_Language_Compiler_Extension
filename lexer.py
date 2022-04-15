@@ -1,9 +1,9 @@
+# Author: Dao Xiang, k1924711, 1903053
 
 import sys
 import ply.lex as lex
 
 # ---------------Lexing------------------
-# t_KEYWORD = r'skip|while|do|if|then|else|read|write|for|to'
 keywords = { 'skip' : 'SKIP',
             'while' : 'WHILE',
             'import' : 'IMPORT',
@@ -14,13 +14,9 @@ keywords = { 'skip' : 'SKIP',
             'else' : 'ELSE',
             'read' : 'READ',
             'write' : 'WRITE',
-            'writeln' : 'WRITELN',
-            # 'for' : 'FOR',
-            # 'to' : 'TO'
+            'writeln' : 'WRITELN'
             }
 t_BKEYWORD = r'true|false' # Boolean keywords
-# t_OPERATOR = r'\+|-|\*|%|/|==|!=|>|<|<=|>=|:=|&&|\|\|'
-# t_AOPERATOR = r'\+|-|\*|%|/' # Arithmetic operators
 t_PLUS = r'\+'
 t_MINUS = r'-'
 t_TIMES = r'\*'
@@ -35,12 +31,9 @@ boperators = ['ABOPERATOR', 'BCOPERATOR', 'LBOPERATOR', 'BNOPERATOR']
 t_ASSOPERATOR = r':=' # Assign
 t_LAMBDAOPERATOR = r'=>' # Lambda
 operators = ['ASSOPERATOR', 'LAMBDAOPERATOR'] + aoperators + boperators
-# t_LETTER = r'[a-zA-Z]'
-# t_SYMBOL = r'[a-zA-Z._><=;,\\:]'
 def t_WHITESPACE(t):
     r'[ \n\t\r]+'
     pass
-# t_DIGIT = r'[0-9]'
 def t_FNUMBER(t):
     r'\d+\.\d+'
     t.value = float(t.value)
@@ -53,7 +46,6 @@ t_STRING = r'"(.+?)"'
 t_SEMICOLON = r';'
 t_DOT = r'\.'
 t_COMMA = r','
-# t_PARENTHESIS = r'{|}|\(|\)'
 t_LBRACE = r'{'
 t_RBRACE = r'}'
 t_LBRACKET = r'\['
@@ -80,22 +72,6 @@ def t_error(t):
     pass
 
 lex.lex(debug=False)
-
-# # customize tokens
-# def tokenize(filename):
-#     lexer = lex.lex()
-#     file = open(filename)
-#     data = file.read()
-#     file.close()
-#     lexer.input(data)
-#     tokens = []
-#     while True:
-#         tok = lexer.token()
-#         if not tok: 
-#             break      # No more input
-#         tokens = tokens + [(tok.type, tok.value)]
-#     return tokens
-
 
 # Test the lexer file independently. eg: python3 lexer.py test/collatz.while 
 if __name__ == '__main__':
